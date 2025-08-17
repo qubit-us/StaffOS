@@ -1,57 +1,47 @@
 import express from "express";
 import bodyParser from "body-parser";
+import pa11y from "pa11y";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware to parse JSON
 app.use(bodyParser.json());
 
-// GET route for quick browser check
 app.get("/scan", (req, res) => {
   res.send("Scan endpoint works! Use POST with JSON body for actual scanning.");
 });
 
-// POST route for scanning
 app.post("/scan", async (req, res) => {
   try {
-    console.log("Body received:", req.body);
-
     const { url } = req.body;
-    if (!url) {
-      return res.status(400).json({ error: "Missing URL in request body" });
-    }
+    if (!url) return res.status(400).json({ error: "Missing URL" });
 
-    // Dummy scan result
-    const result = {
+    console.log("Scanning URL:", url);
+
+    // Real accessibility scan using pa11y
+    const results = await pa11y(url);
+
+    // Format results
+    const formatted = {
       url,
-      score: 85, // dummy accessibility score
-      violations: [
-        {
-          id: "image-alt",
-          impact: "critical",
-          description: "Image missing alt attribute",
-        },
-        {
-          id: "color-contrast",
-          impact: "moderate",
-          description: "Low contrast text found",
-        },
-      ],
+      score: results.issues.length === 0 ? 100 : Math.max(0, 100 - results.issues.length * 10),
+      violations: results.issues.map(i => ({
+        id: i.code,
+        impact: i.type,
+        description: i.message
+      }))
     };
 
-    console.log("Sending result:", result);
-    res.json(result);
+    console.log("Scan complete:", formatted);
+    res.json(formatted);
   } catch (err) {
-    console.error("Error handling /scan:", err);
+    console.error("Error scanning URL:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server listening on port ${PORT}`);
-});
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+
 
 
 
