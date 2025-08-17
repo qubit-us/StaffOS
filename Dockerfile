@@ -29,11 +29,16 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     chromium \
     fonts-liberation \
+    dumb-init \
     --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && which chromium \
+    && chromium --version
 
-# Set Chrome path
+# Set Chrome path and other environment variables
 ENV CHROME_BIN=/usr/bin/chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Set working directory
 WORKDIR /app
