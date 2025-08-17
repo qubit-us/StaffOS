@@ -48,11 +48,34 @@ app.post("/scan", async (req, res) => {
       return res.status(400).json({ error: "Invalid URL format" });
     }
 
-    // Run accessibility scan with pa11y
-    const results = await pa11y(url, {
+    // Configure pa11y for Railway/serverless environment
+    const pa11yOptions = {
       timeout: 30000,
-      wait: 1000
-    });
+      wait: 2000,
+      chromeLaunchConfig: {
+        executablePath: process.env.CHROME_BIN || '/usr/bin/chromium-browser',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=TranslateUI',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ]
+      }
+    };
+
+    // Run accessibility scan with pa11y
+    console.log("Starting pa11y scan with options:", pa11yOptions);
+    const results = await pa11y(url, pa11yOptions);
 
     console.log("Pa11y results:", results);
 
@@ -102,98 +125,3 @@ app.listen(PORT, () => {
   console.log(`  GET  / - Health check`);
   console.log(`  POST /scan - Accessibility scan`);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// import express from "express";
-// import { chromium } from "playwright";
-// import AxeBuilder from "@axe-core/playwright";
-
-// const app = express();
-// app.use(express.json());
-
-// // Simple health check
-// app.get("/", (req, res) => {
-//   res.send({ status: "ok", message: "ADA Scanner API running" });
-// });
-
-// // Scan endpoint
-// app.post("/scan", async (req, res) => {
-//   const { url } = req.body;
-
-//   if (!url) return res.status(400).json({ error: "Missing URL" });
-
-//   const browser = await chromium.launch();
-//   const page = await browser.newPage();
-
-//   try {
-//     await page.goto(url, { waitUntil: "networkidle" });
-//     const results = await new AxeBuilder({ page }).analyze();
-
-//     // Basic compliance scoring
-//     const violations = results.violations.length;
-//     const passes = results.passes.length;
-//     const score = Math.round((passes / (passes + violations)) * 100);
-
-//     await browser.close();
-
-//     return res.json({
-//       url,
-//       score,
-//       violations: results.violations.map(v => ({
-//         id: v.id,
-//         description: v.description,
-//         impact: v.impact,
-//         help: v.help,
-//         wcag: v.tags,
-//         nodes: v.nodes.map(n => ({
-//           html: n.html,
-//           target: n.target,
-//           failureSummary: n.failureSummary,
-//         })),
-//       })),
-//     });
-//   } catch (err) {
-//     await browser.close();
-//     return res.status(500).json({ error: err.message });
-//   }
-// });
-
-// const PORT = process.env.PORT || 3000;
-// app.listen(PORT, () => {
-//   console.log(`🚀 ADA Scanner API running on port ${PORT}`);
-// });
-
-
-// app.post("/scan", async (req, res) => {
-//   console.log("Received body:", req.body); // <-- see what Railway actually got
-//   const { url } = req.body;
-//   if (!url) return res.status(400).json({ error: "Missing URL or invalid JSON" });
-//   // continue processing...
-// });
-
-// app.get("/scan", (req, res) => {
-//   res.send("Scan endpoint works! Use POST with JSON body for actual scanning.");
-// });
-
