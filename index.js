@@ -64,3 +64,8 @@ app.post("/scan", async (req, res) => {
   if (!url) return res.status(400).json({ error: "Missing URL or invalid JSON" });
   // continue processing...
 });
+
+app.get("/scan", (req, res) => {
+  res.send("Scan endpoint works! Use POST with JSON body for actual scanning.");
+});
+
