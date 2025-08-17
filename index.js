@@ -50,10 +50,10 @@ app.post("/scan", async (req, res) => {
 
     // Configure pa11y for Railway/serverless environment
     const pa11yOptions = {
-      timeout: 30000,
-      wait: 2000,
+      timeout: 60000, // Increased timeout
+      wait: 1000,
       chromeLaunchConfig: {
-        executablePath: process.env.CHROME_BIN || '/usr/bin/chromium-browser',
+        executablePath: '/usr/bin/chromium',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -68,7 +68,13 @@ app.post("/scan", async (req, res) => {
           '--disable-renderer-backgrounding',
           '--disable-features=TranslateUI',
           '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
+          '--disable-features=VizDisplayCompositor',
+          '--headless=new',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-images',
+          '--disable-javascript',
+          '--virtual-time-budget=10000'
         ]
       }
     };
