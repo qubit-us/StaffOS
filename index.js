@@ -7,10 +7,12 @@ const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 
+// GET route for browser sanity check
 app.get("/scan", (req, res) => {
   res.send("Scan endpoint works! Use POST with JSON body for actual scanning.");
 });
 
+// POST route for actual scan
 app.post("/scan", async (req, res) => {
   try {
     const { url } = req.body;
@@ -18,17 +20,17 @@ app.post("/scan", async (req, res) => {
 
     console.log("Scanning URL:", url);
 
-    // Real accessibility scan using pa11y
+    // Run accessibility scan with pa11y
     const results = await pa11y(url);
 
-    // Format results
+    // Format results for API response
     const formatted = {
       url,
       score: results.issues.length === 0 ? 100 : Math.max(0, 100 - results.issues.length * 10),
-      violations: results.issues.map(i => ({
-        id: i.code,
-        impact: i.type,
-        description: i.message
+      violations: results.issues.map(issue => ({
+        id: issue.code,
+        impact: issue.type,
+        description: issue.message
       }))
     };
 
@@ -40,7 +42,9 @@ app.post("/scan", async (req, res) => {
   }
 });
 
+// Start server
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+
 
 
 
