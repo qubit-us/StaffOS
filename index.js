@@ -56,3 +56,11 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 ADA Scanner API running on port ${PORT}`);
 });
+
+
+app.post("/scan", async (req, res) => {
+  console.log("Received body:", req.body); // <-- see what Railway actually got
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: "Missing URL or invalid JSON" });
+  // continue processing...
+});
