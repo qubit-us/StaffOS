@@ -46,9 +46,9 @@ VALUES ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-0000000
 -- ============================================================
 
 INSERT INTO users (id, org_id, email, password_hash, first_name, last_name, email_verified) VALUES
-  ('00000000-0000-0000-0001-000000000001', '00000000-0000-0000-0000-000000000001', 'admin@talentbridge.io',    '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewBKXqBYjmOBYBbu', 'Sarah', 'Chen',    true),
-  ('00000000-0000-0000-0001-000000000002', '00000000-0000-0000-0000-000000000001', 'recruiter@talentbridge.io','$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewBKXqBYjmOBYBbu', 'Marcus', 'Johnson', true),
-  ('00000000-0000-0000-0001-000000000003', '00000000-0000-0000-0000-000000000002', 'vendor@techtalent.com',   '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewBKXqBYjmOBYBbu', 'Priya',  'Patel',   true);
+  ('00000000-0000-0000-0001-000000000001', '00000000-0000-0000-0000-000000000001', 'admin@talentbridge.io',    '$2b$12$7ids7gbGDmo.KGDTKPYydejgfec0D8RoId3zg649vK0O2.8zN.qzy', 'Sarah', 'Chen',    true),
+  ('00000000-0000-0000-0001-000000000002', '00000000-0000-0000-0000-000000000001', 'recruiter@talentbridge.io','$2b$12$7ids7gbGDmo.KGDTKPYydejgfec0D8RoId3zg649vK0O2.8zN.qzy', 'Marcus', 'Johnson', true),
+  ('00000000-0000-0000-0001-000000000003', '00000000-0000-0000-0000-000000000002', 'vendor@techtalent.com',   '$2b$12$7ids7gbGDmo.KGDTKPYydejgfec0D8RoId3zg649vK0O2.8zN.qzy', 'Priya',  'Patel',   true);
 
 -- ============================================================
 -- ROLES
