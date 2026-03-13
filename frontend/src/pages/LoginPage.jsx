@@ -42,7 +42,8 @@ export default function LoginPage() {
       }
       navigate('/');
     } catch (err) {
-      toast.error(err.response?.data?.error || (mode === 'login' ? 'Login failed' : 'Signup failed'));
+      console.error('Auth error:', err.response?.status, err.response?.data, err.message);
+      toast.error(err.response?.data?.error || err.message || (mode === 'login' ? 'Login failed' : 'Signup failed'));
     } finally {
       setLoading(false);
     }

@@ -25,7 +25,7 @@ app.use(cors({
 }));
 
 // Rate limiting
-app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too many auth requests' }));
+app.use('/api/auth', rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: { error: 'Too many auth requests, please try again later' } }));
 app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, max: 500 }));
 
 // Parsing
