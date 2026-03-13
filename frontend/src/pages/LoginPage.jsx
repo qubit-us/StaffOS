@@ -6,22 +6,43 @@ import toast from 'react-hot-toast';
 import { Zap, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
+  const [mode, setMode] = useState('login'); // 'login' | 'signup'
   const [email, setEmail] = useState('admin@talentbridge.io');
   const [password, setPassword] = useState('Password123!');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [orgName, setOrgName] = useState('');
   const [loading, setLoading] = useState(false);
   const { setAuth } = useAuthStore();
   const navigate = useNavigate();
+
+  const switchMode = (m) => {
+    setMode(m);
+    if (m === 'login') {
+      setEmail('admin@talentbridge.io');
+      setPassword('Password123!');
+    } else {
+      setEmail('');
+      setPassword('');
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { data } = await api.post('/api/auth/login', { email, password });
-      setAuth(data.user, data.token);
-      toast.success(`Welcome back, ${data.user.firstName}!`);
+      if (mode === 'login') {
+        const { data } = await api.post('/api/auth/login', { email, password });
+        setAuth(data.user, data.token);
+        toast.success(`Welcome back, ${data.user.firstName}!`);
+      } else {
+        const { data } = await api.post('/api/auth/signup', { firstName, lastName, email, password, orgName });
+        setAuth(data.user, data.token);
+        toast.success(`Welcome, ${data.user.firstName}! Your account is ready.`);
+      }
       navigate('/');
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Login failed');
+      toast.error(err.response?.data?.error || (mode === 'login' ? 'Login failed' : 'Signup failed'));
     } finally {
       setLoading(false);
     }
@@ -29,14 +50,12 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-brand-900 to-slate-900 flex items-center justify-center p-4">
-      {/* Background pattern */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-brand-500/20 rounded-full blur-3xl" />
         <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl" />
       </div>
 
       <div className="relative w-full max-w-md">
-        {/* Card */}
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl p-8">
           {/* Logo */}
           <div className="flex items-center gap-3 mb-8">
@@ -49,31 +68,58 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-slate-900 mb-1">Welcome back</h2>
-          <p className="text-slate-500 text-sm mb-7">Sign in to your organization account</p>
+          {/* Mode tabs */}
+          <div className="flex rounded-xl bg-surface-100 p-1 mb-6">
+            <button
+              type="button"
+              onClick={() => switchMode('login')}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode === 'login' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('signup')}
+              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode === 'signup' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              Create account
+            </button>
+          </div>
+
+          <h2 className="text-2xl font-bold text-slate-900 mb-1">
+            {mode === 'login' ? 'Welcome back' : 'Get started'}
+          </h2>
+          <p className="text-slate-500 text-sm mb-6">
+            {mode === 'login' ? 'Sign in to your organization account' : 'Create your staffing agency account'}
+          </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'signup' && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">First name</label>
+                    <input type="text" className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jane" required />
+                  </div>
+                  <div>
+                    <label className="label">Last name</label>
+                    <input type="text" className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Smith" required />
+                  </div>
+                </div>
+                <div>
+                  <label className="label">Organization name</label>
+                  <input type="text" className="input" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Acme Staffing" required />
+                </div>
+              </>
+            )}
+
             <div>
               <label className="label">Email address</label>
-              <input
-                type="email"
-                className="input"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@organization.com"
-                required
-              />
+              <input type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@organization.com" required />
             </div>
             <div>
               <label className="label">Password</label>
-              <input
-                type="password"
-                className="input"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
+              <input type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={8} />
             </div>
 
             <button
@@ -82,28 +128,30 @@ export default function LoginPage() {
               className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md"
             >
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} />}
-              {loading ? 'Signing in...' : 'Sign in'}
+              {loading ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (mode === 'login' ? 'Sign in' : 'Create account')}
             </button>
           </form>
 
-          {/* Demo credentials */}
-          <div className="mt-6 p-4 bg-surface-50 rounded-xl border border-surface-200">
-            <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Demo Credentials</p>
-            <div className="space-y-1.5 text-xs text-slate-600">
-              <div className="flex justify-between">
-                <span className="font-medium">Agency Admin:</span>
-                <span className="font-mono">admin@talentbridge.io</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Recruiter:</span>
-                <span className="font-mono">recruiter@talentbridge.io</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="font-medium">Password:</span>
-                <span className="font-mono">Password123!</span>
+          {/* Demo credentials (login mode only) */}
+          {mode === 'login' && (
+            <div className="mt-6 p-4 bg-surface-50 rounded-xl border border-surface-200">
+              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Demo Credentials</p>
+              <div className="space-y-1.5 text-xs text-slate-600">
+                <div className="flex justify-between">
+                  <span className="font-medium">Agency Admin:</span>
+                  <span className="font-mono">admin@talentbridge.io</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Recruiter:</span>
+                  <span className="font-mono">recruiter@talentbridge.io</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Password:</span>
+                  <span className="font-mono">Password123!</span>
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>
