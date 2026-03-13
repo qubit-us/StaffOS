@@ -72,6 +72,11 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-slide-up">
+      {/* TEMP DEBUG BANNER - remove after confirming render */}
+      <div style={{ background: '#22c55e', color: '#fff', padding: '12px 16px', borderRadius: '8px', fontWeight: 'bold', fontSize: '14px' }}>
+        Hello World! Dashboard is rendering. User: {user?.email || 'unknown'} | Token: {useAuthStore.getState().token ? 'present' : 'missing'}
+      </div>
+
       {/* Welcome */}
       <div className="flex items-center justify-between">
         <div>
