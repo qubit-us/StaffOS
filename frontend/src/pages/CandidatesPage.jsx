@@ -27,7 +27,7 @@ function CandidateCard({ candidate }) {
   const colorIdx = (candidate.id?.charCodeAt(0) || 0) % colors.length;
 
   return (
-    <div className="card-hover p-5">
+    <Link to={`/candidates/${candidate.id}`} className="card-hover p-5 block">
       <div className="flex items-start gap-4 mb-4">
         <div className={`w-12 h-12 bg-gradient-to-br ${colors[colorIdx]} rounded-2xl flex items-center justify-center text-white font-bold text-base shrink-0`}>
           {initials}
@@ -78,7 +78,7 @@ function CandidateCard({ candidate }) {
           Via vendor: <span className="font-semibold text-slate-600">{candidate.vendor_name}</span>
         </div>
       )}
-    </div>
+    </Link>
   );
 }
 

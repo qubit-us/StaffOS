@@ -8,6 +8,7 @@ import CandidatesPage from './pages/CandidatesPage.jsx';
 import MatchesPage from './pages/MatchesPage.jsx';
 import PipelinePage from './pages/PipelinePage.jsx';
 import UploadResumePage from './pages/UploadResumePage.jsx';
+import CandidateDetailPage from './pages/CandidateDetailPage.jsx';
 
 const ProtectedRoute = ({ children }) => {
   const { token } = useAuthStore();
@@ -30,6 +31,7 @@ export default function App() {
           <Route index element={<DashboardPage />} />
           <Route path="jobs" element={<JobsPage />} />
           <Route path="candidates" element={<CandidatesPage />} />
+          <Route path="candidates/:id" element={<CandidateDetailPage />} />
           <Route path="matches" element={<MatchesPage />} />
           <Route path="pipeline" element={<PipelinePage />} />
           <Route path="upload" element={<UploadResumePage />} />

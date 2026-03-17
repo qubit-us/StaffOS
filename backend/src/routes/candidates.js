@@ -5,6 +5,7 @@ import { db } from '../config/database.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { resumeParser } from '../services/ai/resumeParser.js';
 import { duplicateDetector } from '../services/ai/duplicateDetector.js';
+import { linkedinEnricher } from '../services/ai/linkedinEnricher.js';
 
 const router = Router();
 router.use(authenticate);
@@ -154,6 +155,75 @@ router.get('/:id/jobs', requirePermission('VIEW_MATCHES'), async (req, res) => {
     [req.params.id, limit]
   );
   res.json(rows);
+});
+
+// GET /api/candidates/:id/submissions — pipeline history for a candidate
+router.get('/:id/submissions', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
+  const { rows } = await db.query(
+    `SELECT s.*, j.title as job_title, j.location_city, j.pay_rate_min, j.pay_rate_max
+     FROM submissions s
+     JOIN jobs j ON j.id = s.job_id
+     WHERE s.candidate_id = $1 AND s.org_id = $2
+     ORDER BY s.created_at DESC`,
+    [req.params.id, req.orgId]
+  );
+  res.json(rows);
+});
+
+// POST /api/candidates/:id/enrich-linkedin — pull latest data from LinkedIn
+router.post('/:id/enrich-linkedin', requirePermission('UPLOAD_RESUME'), async (req, res) => {
+  const { rows } = await db.query(
+    'SELECT id, linkedin_url FROM candidates WHERE id = $1 AND org_id = $2',
+    [req.params.id, req.orgId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Candidate not found' });
+
+  const { linkedin_url } = rows[0];
+  if (!linkedin_url) return res.status(400).json({ error: 'No LinkedIn URL on this candidate' });
+
+  let enriched;
+  try {
+    enriched = await linkedinEnricher.enrich(linkedin_url);
+  } catch (err) {
+    return res.status(502).json({ error: err.message });
+  }
+
+  // Merge enriched data — only overwrite fields that are currently empty/null
+  const { rows: [current] } = await db.query('SELECT * FROM candidates WHERE id = $1', [req.params.id]);
+
+  const updated = await db.query(
+    `UPDATE candidates SET
+       title                = COALESCE(NULLIF($2, ''), title),
+       summary              = COALESCE(NULLIF($3, ''), summary),
+       skills               = CASE WHEN array_length(skills, 1) IS NULL THEN $4 ELSE skills END,
+       years_of_experience  = COALESCE(years_of_experience, $5),
+       companies_worked     = CASE WHEN companies_worked::text = '[]' OR companies_worked IS NULL THEN $6::jsonb ELSE companies_worked END,
+       education            = CASE WHEN education::text = '[]' OR education IS NULL THEN $7::jsonb ELSE education END,
+       certifications       = CASE WHEN certifications::text = '[]' OR certifications IS NULL THEN $8::jsonb ELSE certifications END,
+       languages            = CASE WHEN languages::text = '[]' OR languages IS NULL THEN $9::jsonb ELSE languages END,
+       location_city        = COALESCE(NULLIF(location_city, ''), $10),
+       location_state       = COALESCE(NULLIF(location_state, ''), $11),
+       location_country     = COALESCE(NULLIF(location_country, ''), $12),
+       updated_at           = NOW()
+     WHERE id = $1
+     RETURNING *`,
+    [
+      req.params.id,
+      enriched.title,
+      enriched.summary,
+      enriched.skills?.length ? enriched.skills : current.skills,
+      enriched.yearsOfExperience,
+      JSON.stringify(enriched.companies || []),
+      JSON.stringify(enriched.education || []),
+      JSON.stringify(enriched.certifications || []),
+      JSON.stringify(enriched.languages || []),
+      enriched.city,
+      enriched.state,
+      enriched.country,
+    ]
+  );
+
+  res.json({ candidate: updated.rows[0], enriched });
 });
 
 // POST /api/candidates/:id/submit — submit to a job
