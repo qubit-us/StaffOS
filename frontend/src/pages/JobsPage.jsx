@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
 import { Plus, Briefcase, MapPin, DollarSign, Users, Sparkles, Search, Loader2, X, ChevronDown } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { clsx } from 'clsx';
 
 const statusColors = {
@@ -23,7 +24,8 @@ const supplyColors = {
 
 function JobCard({ job, onMatch }) {
   return (
-    <div className="card-hover p-5">
+    <div className="card-hover p-5 relative">
+      <Link to={`/jobs/${job.id}`} className="absolute inset-0 rounded-2xl" aria-label={job.title} />
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-slate-900 truncate">{job.title}</h3>
@@ -66,8 +68,8 @@ function JobCard({ job, onMatch }) {
           )}
         </div>
         <button
-          onClick={() => onMatch(job.id)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors"
+          onClick={e => { e.preventDefault(); onMatch(job.id); }}
+          className="relative z-10 flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors"
         >
           <Sparkles size={13} /> Run Match
         </button>
