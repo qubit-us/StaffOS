@@ -6,6 +6,7 @@ import { authenticate, requirePermission } from '../middleware/auth.js';
 import { resumeParser } from '../services/ai/resumeParser.js';
 import { duplicateDetector } from '../services/ai/duplicateDetector.js';
 import { linkedinEnricher } from '../services/ai/linkedinEnricher.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 router.use(authenticate);
@@ -152,6 +153,10 @@ router.post('/upload', requirePermission('UPLOAD_RESUME'), upload.single('resume
     parsedProfile = await resumeParser.parse(req.file.path, req.file.mimetype);
   } catch (err) {
     parseError = err.message;
+    logger.error('Resume parse failed', { error: err.message, file: req.file.originalname });
+    // Clean up file record and return error — don't save a blank candidate
+    await db.query('DELETE FROM resume_files WHERE id = $1', [fileRecord.id]);
+    return res.status(422).json({ error: `Resume parsing failed: ${err.message}` });
   }
 
   // Detect duplicates
