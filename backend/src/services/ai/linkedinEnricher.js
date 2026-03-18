@@ -1,17 +1,49 @@
 import axios from 'axios';
 
+// Normalize LinkedIn URL to the format ProxyCurl expects
+function normalizeLinkedInUrl(url) {
+  try {
+    const u = new URL(url.trim());
+    // Ensure https and www
+    u.protocol = 'https:';
+    if (!u.hostname.startsWith('www.')) u.hostname = 'www.' + u.hostname;
+    // Strip query params and trailing slashes
+    const clean = `${u.origin}${u.pathname}`.replace(/\/$/, '');
+    return clean;
+  } catch {
+    return url.trim();
+  }
+}
+
 export const linkedinEnricher = {
   async enrich(linkedinUrl) {
     const apiKey = process.env.PROXYCURL_API_KEY;
     if (!apiKey) throw new Error('PROXYCURL_API_KEY not configured');
 
-    const { data } = await axios.get('https://nubela.co/proxycurl/api/v2/linkedin', {
-      params: { url: linkedinUrl, use_cache: 'if-present', fallback_to_cache: 'on-error' },
-      headers: { Authorization: `Bearer ${apiKey}` },
-      timeout: 15000,
-    });
+    const normalized = normalizeLinkedInUrl(linkedinUrl);
 
-    return mapToCandidate(data);
+    if (!normalized.includes('linkedin.com/in/')) {
+      throw new Error('Invalid LinkedIn URL. Expected format: linkedin.com/in/username');
+    }
+
+    let response;
+    try {
+      response = await axios.get('https://nubela.co/proxycurl/api/v2/linkedin', {
+        params: { url: normalized, use_cache: 'if-present', fallback_to_cache: 'on-error' },
+        headers: { Authorization: `Bearer ${apiKey}` },
+        timeout: 20000,
+      });
+    } catch (err) {
+      const status = err.response?.status;
+      if (status === 404) throw new Error('LinkedIn profile not found. Make sure the URL is correct and the profile is public.');
+      if (status === 400) throw new Error('Invalid LinkedIn URL format.');
+      if (status === 401) throw new Error('ProxyCurl API key is invalid.');
+      if (status === 403) throw new Error('ProxyCurl credits exhausted. Please top up your account.');
+      if (status === 429) throw new Error('ProxyCurl rate limit reached. Please try again in a moment.');
+      throw new Error(`LinkedIn fetch failed: ${err.message}`);
+    }
+
+    return mapToCandidate(response.data);
   },
 };
 
