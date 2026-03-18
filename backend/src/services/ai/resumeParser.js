@@ -97,7 +97,7 @@ export const resumeParser = {
       const base64 = buffer.toString('base64');
 
       response = await client.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2048,
         messages: [{
           role: 'user',
@@ -113,7 +113,7 @@ export const resumeParser = {
     } else {
       const truncated = extracted.text.slice(0, 12000);
       response = await client.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2048,
         messages: [{
           role: 'user',
