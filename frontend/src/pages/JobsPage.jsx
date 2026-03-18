@@ -78,11 +78,56 @@ function JobCard({ job, onMatch }) {
   );
 }
 
+const VISA_OPTIONS = [
+  { value: 'citizen',    label: 'US Citizen' },
+  { value: 'green_card', label: 'Green Card' },
+  { value: 'h1b',        label: 'H1B' },
+  { value: 'h4_ead',     label: 'H4 EAD' },
+  { value: 'opt',        label: 'OPT' },
+  { value: 'stem_opt',   label: 'STEM OPT' },
+  { value: 'l1',         label: 'L1' },
+  { value: 'tn',         label: 'TN' },
+];
+
+const JOB_TYPES = [
+  { value: 'full_time',   label: 'Full Time' },
+  { value: 'part_time',   label: 'Part Time' },
+  { value: 'contract',    label: 'Contract' },
+  { value: 'internship',  label: 'Internship' },
+  { value: 'other',       label: 'Other' },
+];
+
+function VisaCheckboxes({ selected, onChange }) {
+  const toggle = (val) => {
+    onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]);
+  };
+  return (
+    <div className="flex flex-wrap gap-2">
+      {VISA_OPTIONS.map(o => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => toggle(o.value)}
+          className={clsx(
+            'px-3 py-1 rounded-lg text-xs font-medium border transition-colors',
+            selected.includes(o.value)
+              ? 'bg-brand-600 text-white border-brand-600'
+              : 'bg-white text-slate-600 border-surface-200 hover:border-brand-400'
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function NewJobModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
     title: '', description: '', required_skills: '',
     experience_min: '', pay_rate_min: '', pay_rate_max: '',
     location_city: '', location_state: '', remote_allowed: false,
+    job_type: 'contract', visa_requirements: [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -123,6 +168,12 @@ function NewJobModal({ onClose, onCreated }) {
             <input className="input" placeholder="e.g. Senior React Developer" value={form.title} onChange={set('title')} required />
           </div>
           <div>
+            <label className="label">Job Type</label>
+            <select className="input" value={form.job_type} onChange={set('job_type')}>
+              {JOB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
             <label className="label">Description</label>
             <textarea className="input min-h-[90px] resize-none" placeholder="Job description, responsibilities..." value={form.description} onChange={set('description')} />
           </div>
@@ -153,6 +204,14 @@ function NewJobModal({ onClose, onCreated }) {
               <label className="label">State</label>
               <input className="input" placeholder="NY" value={form.location_state} onChange={set('location_state')} />
             </div>
+          </div>
+          <div>
+            <label className="label">Visa / Work Authorization</label>
+            <p className="text-xs text-slate-400 mb-2">Select all that are acceptable</p>
+            <VisaCheckboxes
+              selected={form.visa_requirements}
+              onChange={vals => setForm(f => ({ ...f, visa_requirements: vals }))}
+            />
           </div>
           <label className="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" checked={form.remote_allowed} onChange={set('remote_allowed')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />

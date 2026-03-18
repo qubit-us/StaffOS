@@ -7,9 +7,56 @@ import {
   ArrowLeft, MapPin, DollarSign, Star, Briefcase, Users, Sparkles,
   Loader2, X, Edit2, Calendar, Clock, Building2, ChevronRight,
   CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Minus,
-  Wifi, Save,
+  Wifi, Save, BadgeCheck,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+
+const VISA_OPTIONS = [
+  { value: 'citizen',    label: 'US Citizen' },
+  { value: 'green_card', label: 'Green Card' },
+  { value: 'h1b',        label: 'H1B' },
+  { value: 'h4_ead',     label: 'H4 EAD' },
+  { value: 'opt',        label: 'OPT' },
+  { value: 'stem_opt',   label: 'STEM OPT' },
+  { value: 'l1',         label: 'L1' },
+  { value: 'tn',         label: 'TN' },
+];
+
+const JOB_TYPES = [
+  { value: 'full_time',  label: 'Full Time' },
+  { value: 'part_time',  label: 'Part Time' },
+  { value: 'contract',   label: 'Contract' },
+  { value: 'internship', label: 'Internship' },
+  { value: 'other',      label: 'Other' },
+];
+
+const jobTypeColors = {
+  full_time:  'bg-emerald-50 text-emerald-700',
+  part_time:  'bg-blue-50 text-blue-700',
+  contract:   'bg-brand-50 text-brand-700',
+  internship: 'bg-violet-50 text-violet-700',
+  other:      'bg-slate-100 text-slate-600',
+};
+
+function VisaCheckboxes({ selected, onChange }) {
+  const toggle = (val) =>
+    onChange(selected.includes(val) ? selected.filter(v => v !== val) : [...selected, val]);
+  return (
+    <div className="flex flex-wrap gap-2">
+      {VISA_OPTIONS.map(o => (
+        <button key={o.value} type="button" onClick={() => toggle(o.value)}
+          className={clsx(
+            'px-3 py-1 rounded-lg text-xs font-medium border transition-colors',
+            selected.includes(o.value)
+              ? 'bg-brand-600 text-white border-brand-600'
+              : 'bg-white text-slate-600 border-surface-200 hover:border-brand-400'
+          )}>
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const statusColors = {
   open:         'bg-emerald-100 text-emerald-700',
@@ -64,19 +111,21 @@ function ScoreRing({ score }) {
 
 function EditJobModal({ job, onClose, onSaved }) {
   const [form, setForm] = useState({
-    title:              job.title || '',
-    description:        job.description || '',
-    required_skills:    (job.required_skills || []).join(', '),
-    nice_to_have_skills:(job.nice_to_have_skills || []).join(', '),
-    experience_min:     job.experience_min || '',
-    experience_max:     job.experience_max || '',
-    pay_rate_min:       job.pay_rate_min || '',
-    pay_rate_max:       job.pay_rate_max || '',
-    location_city:      job.location_city || '',
-    location_state:     job.location_state || '',
-    remote_allowed:     job.remote_allowed || false,
-    status:             job.status || 'open',
-    deadline:           job.deadline ? job.deadline.split('T')[0] : '',
+    title:               job.title || '',
+    description:         job.description || '',
+    required_skills:     (job.required_skills || []).join(', '),
+    nice_to_have_skills: (job.nice_to_have_skills || []).join(', '),
+    experience_min:      job.experience_min || '',
+    experience_max:      job.experience_max || '',
+    pay_rate_min:        job.pay_rate_min || '',
+    pay_rate_max:        job.pay_rate_max || '',
+    location_city:       job.location_city || '',
+    location_state:      job.location_state || '',
+    remote_allowed:      job.remote_allowed || false,
+    status:              job.status || 'open',
+    deadline:            job.deadline ? job.deadline.split('T')[0] : '',
+    job_type:            job.job_type || 'contract',
+    visa_requirements:   job.visa_requirements || [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -119,13 +168,29 @@ function EditJobModal({ job, onClose, onSaved }) {
             <label className="label">Job Title *</label>
             <input className="input" value={form.title} onChange={set('title')} required />
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Status</label>
+              <select className="input" value={form.status} onChange={set('status')}>
+                {['draft','open','matching','submitted','interviewing','filled','closed'].map(s => (
+                  <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="label">Job Type</label>
+              <select className="input" value={form.job_type} onChange={set('job_type')}>
+                {JOB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
           <div>
-            <label className="label">Status</label>
-            <select className="input" value={form.status} onChange={set('status')}>
-              {['draft','open','matching','submitted','interviewing','filled','closed'].map(s => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-              ))}
-            </select>
+            <label className="label">Visa / Work Authorization</label>
+            <p className="text-xs text-slate-400 mb-2">Select all that are acceptable</p>
+            <VisaCheckboxes
+              selected={form.visa_requirements}
+              onChange={vals => setForm(f => ({ ...f, visa_requirements: vals }))}
+            />
           </div>
           <div>
             <label className="label">Description</label>
@@ -272,6 +337,11 @@ export default function JobDetailPage() {
                       <supply.icon size={11} /> {job.supply_level} supply
                     </span>
                   )}
+                  {job.job_type && (
+                    <span className={clsx('badge', jobTypeColors[job.job_type] || 'bg-slate-100 text-slate-600')}>
+                      {JOB_TYPES.find(t => t.value === job.job_type)?.label || job.job_type}
+                    </span>
+                  )}
                   {job.remote_allowed && (
                     <span className="badge bg-teal-50 text-teal-700 flex items-center gap-1">
                       <Wifi size={11} /> Remote OK
@@ -344,6 +414,21 @@ export default function JobDetailPage() {
                 {job.nice_to_have_skills.map(s => (
                   <span key={s} className="badge bg-amber-50 text-amber-700">{s}</span>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Visa Requirements */}
+          {job.visa_requirements?.length > 0 && (
+            <div className="card p-5">
+              <h3 className="font-semibold text-slate-800 flex items-center gap-2 mb-3">
+                <BadgeCheck size={15} className="text-brand-500" /> Work Authorization
+              </h3>
+              <div className="flex flex-wrap gap-1.5">
+                {job.visa_requirements.map(v => {
+                  const label = VISA_OPTIONS.find(o => o.value === v)?.label || v;
+                  return <span key={v} className="badge bg-brand-50 text-brand-700">{label}</span>;
+                })}
               </div>
             </div>
           )}
