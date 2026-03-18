@@ -83,6 +83,55 @@ router.get('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
   res.json(rows[0]);
 });
 
+// POST /api/candidates/import-linkedin — create candidate from LinkedIn profile
+router.post('/import-linkedin', requirePermission('UPLOAD_RESUME'), async (req, res) => {
+  const { linkedin_url, vendor_org_id, source = 'linkedin' } = req.body;
+  if (!linkedin_url) return res.status(400).json({ error: 'linkedin_url is required' });
+
+  let enriched;
+  try {
+    enriched = await linkedinEnricher.enrich(linkedin_url);
+  } catch (err) {
+    return res.status(502).json({ error: err.message });
+  }
+
+  const duplicateCheck = await duplicateDetector.check({
+    email: enriched.email,
+    phone: enriched.phone,
+    linkedinUrl: linkedin_url,
+  }, req.orgId);
+
+  const { rows: [candidate] } = await db.query(
+    `INSERT INTO candidates (
+       org_id, submitted_by_user_id, vendor_org_id, upload_source,
+       first_name, last_name, email, phone, linkedin_url,
+       title, summary, skills, years_of_experience, companies_worked,
+       certifications, education, languages,
+       location_city, location_state, location_country,
+       profile_completeness
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+     RETURNING *`,
+    [
+      req.orgId, req.user.id, vendor_org_id || null, source,
+      enriched.firstName, enriched.lastName, enriched.email || null, enriched.phone || null, linkedin_url,
+      enriched.title, enriched.summary, enriched.skills || [], enriched.yearsOfExperience,
+      JSON.stringify(enriched.companies || []),
+      JSON.stringify(enriched.certifications || []),
+      JSON.stringify(enriched.education || []),
+      JSON.stringify(enriched.languages || []),
+      enriched.city, enriched.state, enriched.country || 'US',
+      calcLinkedInCompleteness(enriched),
+    ]
+  );
+
+  res.status(201).json({ candidate, duplicate: duplicateCheck, parseStatus: 'success' });
+});
+
+function calcLinkedInCompleteness(p) {
+  const checks = [p.firstName, p.lastName, p.title, p.summary, p.skills?.length, p.yearsOfExperience, p.companies?.length, p.education?.length, p.city];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
 // POST /api/candidates/upload — resume upload + AI parse
 router.post('/upload', requirePermission('UPLOAD_RESUME'), upload.single('resume'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No resume file uploaded' });
