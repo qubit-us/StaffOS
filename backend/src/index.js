@@ -17,6 +17,9 @@ try { mkdirSync('./uploads/resumes', { recursive: true }); } catch {}
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust Railway/Vercel reverse proxy so rate-limit can read real client IPs
+app.set('trust proxy', 1);
+
 // Security
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
