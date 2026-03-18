@@ -22,6 +22,24 @@ const supplyColors = {
   low:      'text-red-600 bg-red-50',
 };
 
+const jobTypeColors = {
+  full_time:  'bg-emerald-50 text-emerald-700',
+  part_time:  'bg-blue-50 text-blue-700',
+  contract:   'bg-brand-50 text-brand-700',
+  internship: 'bg-violet-50 text-violet-700',
+  other:      'bg-slate-100 text-slate-600',
+};
+
+const jobTypeLabels = {
+  full_time: 'Full Time', part_time: 'Part Time', contract: 'Contract',
+  internship: 'Internship', other: 'Other',
+};
+
+const visaLabels = {
+  citizen: 'Citizen', green_card: 'Green Card', h1b: 'H1B', h4_ead: 'H4 EAD',
+  opt: 'OPT', stem_opt: 'STEM OPT', l1: 'L1', tn: 'TN',
+};
+
 function JobCard({ job, onMatch }) {
   return (
     <div className="card-hover p-5 relative">
@@ -37,8 +55,22 @@ function JobCard({ job, onMatch }) {
       </div>
 
       <div className="flex flex-wrap gap-1.5 mb-3">
+        {job.job_type && (
+          <span className={clsx('badge', jobTypeColors[job.job_type] || 'bg-slate-100 text-slate-600')}>
+            {jobTypeLabels[job.job_type] || job.job_type}
+          </span>
+        )}
+        {job.visa_requirements?.slice(0, 3).map(v => (
+          <span key={v} className="badge bg-slate-100 text-slate-600">{visaLabels[v] || v}</span>
+        ))}
+        {job.visa_requirements?.length > 3 && (
+          <span className="badge bg-slate-100 text-slate-500">+{job.visa_requirements.length - 3} visa</span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mb-3">
         {job.required_skills?.slice(0, 4).map(s => (
-          <span key={s} className="badge bg-slate-100 text-slate-600">{s}</span>
+          <span key={s} className="badge bg-surface-100 text-slate-600">{s}</span>
         ))}
         {job.required_skills?.length > 4 && (
           <span className="badge bg-slate-100 text-slate-500">+{job.required_skills.length - 4}</span>
