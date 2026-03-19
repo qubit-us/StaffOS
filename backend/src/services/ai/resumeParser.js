@@ -1,22 +1,27 @@
 import fs from 'fs/promises';
 import path from 'path';
+import axios from 'axios';
 import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../utils/logger.js';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// OpenRouter — used for all text-based parsing
+const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-flash-1.5';
+
+// Anthropic — kept only for scanned/image PDFs (requires native PDF document support)
+const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function extractText(filePath) {
   const ext = path.extname(filePath).toLowerCase();
 
   if (ext === '.pdf') {
-    // Try text extraction first
     try {
       const pdfParse = (await import('pdf-parse')).default;
       const buffer = await fs.readFile(filePath);
       const data = await pdfParse(buffer);
       if (data.text && data.text.trim().length >= 50) return { text: data.text, source: 'text' };
     } catch {}
-    // Fall back to Claude vision for image-based / scanned PDFs
+    // Fall back to Anthropic vision for scanned/image-based PDFs
     return { text: null, source: 'pdf_vision', filePath };
   }
 
@@ -83,46 +88,59 @@ Industry inference rules:
 
 Resume text:`;
 
+async function parseWithOpenRouter(text) {
+  const res = await axios.post(
+    `${OPENROUTER_BASE}/chat/completions`,
+    {
+      model: OPENROUTER_MODEL,
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: `${PARSE_PROMPT}\n\n${text.slice(0, 12000)}` }],
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://staffos.app',
+        'X-Title': 'StaffOS Resume Parser',
+      },
+      timeout: 30000,
+    }
+  );
+  return res.data.choices[0].message.content.trim();
+}
+
+async function parseWithAnthropicVision(filePath) {
+  const buffer = await fs.readFile(filePath);
+  const base64 = buffer.toString('base64');
+  const res = await anthropicClient.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 2048,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
+        { type: 'text', text: PARSE_PROMPT },
+      ],
+    }],
+  });
+  return res.content[0].text.trim();
+}
+
 export const resumeParser = {
-  async parse(filePath, mimeType) {
+  async parse(filePath) {
     logger.info(`Parsing resume: ${path.basename(filePath)}`);
 
     const extracted = await extractText(filePath);
 
-    let response;
-
+    let content;
     if (extracted.source === 'pdf_vision') {
-      // Send PDF directly to Claude — handles scanned/image-based PDFs
-      const buffer = await fs.readFile(extracted.filePath);
-      const base64 = buffer.toString('base64');
-
-      response = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: 'document',
-              source: { type: 'base64', media_type: 'application/pdf', data: base64 },
-            },
-            { type: 'text', text: PARSE_PROMPT },
-          ],
-        }],
-      });
+      logger.info('Scanned PDF detected — using Anthropic vision fallback');
+      content = await parseWithAnthropicVision(extracted.filePath);
     } else {
-      const truncated = extracted.text.slice(0, 12000);
-      response = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 2048,
-        messages: [{
-          role: 'user',
-          content: `${PARSE_PROMPT}\n\n${truncated}`,
-        }],
-      });
+      logger.info(`Parsing text via OpenRouter (${OPENROUTER_MODEL})`);
+      content = await parseWithOpenRouter(extracted.text);
     }
 
-    const content = response.content[0].text.trim();
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('AI did not return valid JSON');
 
