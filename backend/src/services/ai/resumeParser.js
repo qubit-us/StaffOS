@@ -1,15 +1,11 @@
 import fs from 'fs/promises';
 import path from 'path';
 import axios from 'axios';
-import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../utils/logger.js';
 
-// OpenRouter — used for all text-based parsing
+// OpenRouter — used for all parsing
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
 const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-flash-1.5';
-
-// Anthropic — kept only for scanned/image PDFs (requires native PDF document support)
-const anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 async function extractText(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -21,8 +17,8 @@ async function extractText(filePath) {
       const data = await pdfParse(buffer);
       if (data.text && data.text.trim().length >= 50) return { text: data.text, source: 'text' };
     } catch {}
-    // Fall back to Anthropic vision for scanned/image-based PDFs
-    return { text: null, source: 'pdf_vision', filePath };
+    // Scanned/image-based PDF — no text could be extracted
+    throw new Error('This PDF appears to be a scanned image. Please upload a text-based PDF or convert to DOCX.');
   }
 
   if (ext === '.docx') {
@@ -109,37 +105,14 @@ async function parseWithOpenRouter(text) {
   return res.data.choices[0].message.content.trim();
 }
 
-async function parseWithAnthropicVision(filePath) {
-  const buffer = await fs.readFile(filePath);
-  const base64 = buffer.toString('base64');
-  const res = await anthropicClient.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 2048,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: base64 } },
-        { type: 'text', text: PARSE_PROMPT },
-      ],
-    }],
-  });
-  return res.content[0].text.trim();
-}
-
 export const resumeParser = {
   async parse(filePath) {
     logger.info(`Parsing resume: ${path.basename(filePath)}`);
 
     const extracted = await extractText(filePath);
 
-    let content;
-    if (extracted.source === 'pdf_vision') {
-      logger.info('Scanned PDF detected — using Anthropic vision fallback');
-      content = await parseWithAnthropicVision(extracted.filePath);
-    } else {
-      logger.info(`Parsing text via OpenRouter (${OPENROUTER_MODEL})`);
-      content = await parseWithOpenRouter(extracted.text);
-    }
+    logger.info(`Parsing text via OpenRouter (${OPENROUTER_MODEL})`);
+    const content = await parseWithOpenRouter(extracted.text);
 
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('AI did not return valid JSON');
