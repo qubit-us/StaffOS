@@ -89,7 +89,7 @@ async function parseWithOpenRouter(text) {
     `${OPENROUTER_BASE}/chat/completions`,
     {
       model: OPENROUTER_MODEL,
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [{ role: 'user', content: `${PARSE_PROMPT}\n\n${text.slice(0, 12000)}` }],
     },
     {
@@ -99,10 +99,33 @@ async function parseWithOpenRouter(text) {
         'HTTP-Referer': 'https://staffos.app',
         'X-Title': 'StaffOS Resume Parser',
       },
-      timeout: 30000,
+      timeout: 60000,
     }
   );
-  return res.data.choices[0].message.content.trim();
+
+  const choice = res.data.choices?.[0];
+  const content = choice?.message?.content;
+
+  if (!content) {
+    const reason = choice?.finish_reason || 'unknown';
+    throw new Error(`Model returned no content (finish_reason: ${reason}). The free model may be overloaded — please try again.`);
+  }
+
+  // Strip markdown code fences if the model wrapped the JSON
+  return content.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+}
+
+function safeParseJSON(raw) {
+  // First try straight parse
+  try { return JSON.parse(raw); } catch {}
+
+  // Try extracting the outermost {...} block
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('AI did not return valid JSON');
+
+  // Remove trailing commas before ] or } (common free-model quirk)
+  const cleaned = match[0].replace(/,\s*([\]}])/g, '$1');
+  return JSON.parse(cleaned);
 }
 
 export const resumeParser = {
@@ -114,10 +137,7 @@ export const resumeParser = {
     logger.info(`Parsing text via OpenRouter (${OPENROUTER_MODEL})`);
     const content = await parseWithOpenRouter(extracted.text);
 
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('AI did not return valid JSON');
-
-    const parsed = JSON.parse(jsonMatch[0]);
+    const parsed = safeParseJSON(content);
     parsed.rawText = extracted.text || '';
 
     logger.info(`Resume parsed successfully: ${parsed.firstName} ${parsed.lastName}, ${parsed.skills?.length} skills`);
