@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X } from 'lucide-react';
+import { ArrowLeft, Plus, X, Zap } from 'lucide-react';
+import { GoogleLogin } from '@react-oauth/google';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -76,23 +77,72 @@ export default function PublicRegisterPage() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setLoading(true);
+    try {
+      const { data } = await axios.post(`${API}/api/auth/google`, {
+        credential: credentialResponse.credential,
+      });
+      localStorage.setItem('public_session', JSON.stringify({
+        user: data.user,
+        token: data.token,
+        candidate_id: null,
+      }));
+      toast.success(`Welcome, ${data.user.firstName}!`);
+      navigate(applyJobId ? `/board/${applyJobId}` : '/board');
+    } catch (err) {
+      if (err.response?.status === 404) {
+        toast.error('No account found for this Google account. Please register with email.');
+      } else {
+        toast.error(err.response?.data?.error || 'Google sign-in failed');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50">
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/board" className="flex items-center gap-2 text-slate-600 hover:text-slate-900 text-sm">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-2xl mx-auto px-4 py-3.5 flex items-center justify-between">
+          <Link to="/board" className="flex items-center gap-2 text-slate-600 hover:text-brand-600 text-sm font-medium transition-colors">
             <ArrowLeft size={16} /> Back to Jobs
           </Link>
-          <Link to="/login" className="text-sm text-brand-600 hover:underline">Already have an account?</Link>
+          <Link to="/board" className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-brand-600 rounded-lg flex items-center justify-center">
+              <Zap className="w-4 h-4 text-white" fill="white" />
+            </div>
+            <span className="font-bold text-slate-900 text-sm">StaffOS Jobs</span>
+          </Link>
+          <Link to="/login" className="text-sm text-brand-600 hover:underline font-medium">Sign In</Link>
         </div>
       </header>
 
       <div className="max-w-2xl mx-auto px-4 py-8">
         <div className="bg-white rounded-2xl border border-slate-200 p-8">
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Create your profile</h1>
-          <p className="text-slate-500 mb-6 text-sm">
+          <p className="text-slate-500 mb-5 text-sm">
             {applyJobId ? 'Register to submit your application.' : 'Register to apply to jobs.'}
           </p>
+
+          {/* Google SSO */}
+          <div className="flex justify-center mb-4">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => toast.error('Google sign-in failed. Please try again.')}
+              theme="outline"
+              size="large"
+              width="432"
+              text="signup_with"
+              shape="rectangular"
+            />
+          </div>
+
+          <div className="flex items-center gap-3 mb-5">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="text-xs text-slate-400 font-medium">or register with email</span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {/* Name */}
