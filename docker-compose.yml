@@ -9,7 +9,7 @@ services:
       POSTGRES_USER: staffos_user
       POSTGRES_PASSWORD: staffos_pass
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql

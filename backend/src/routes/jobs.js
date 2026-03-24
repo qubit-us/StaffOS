@@ -67,7 +67,8 @@ router.post('/', requirePermission('CREATE_JOB'), async (req, res) => {
     title, description, required_skills, nice_to_have_skills,
     experience_min, experience_max, location_city, location_state,
     location_country, remote_allowed, visa_requirements, pay_rate_min,
-    pay_rate_max, rate_type, job_type, industry, client_org_id, end_client_org_id, deadline
+    pay_rate_max, client_bill_rate, rate_type, job_type, industry,
+    client_org_id, end_client_org_id, deadline, is_public, positions_count, start_date
   } = req.body;
 
   if (!title) return res.status(400).json({ error: 'Job title is required' });
@@ -76,16 +77,19 @@ router.post('/', requirePermission('CREATE_JOB'), async (req, res) => {
     `INSERT INTO jobs (
        org_id, created_by, title, description, required_skills, nice_to_have_skills,
        experience_min, experience_max, location_city, location_state, location_country,
-       remote_allowed, visa_requirements, pay_rate_min, pay_rate_max, rate_type, job_type,
-       industry, client_org_id, end_client_org_id, deadline, status
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,'open')
+       remote_allowed, visa_requirements, pay_rate_min, pay_rate_max, client_bill_rate,
+       rate_type, job_type, industry, client_org_id, end_client_org_id, deadline,
+       is_public, positions_count, start_date, status
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,'open')
      RETURNING *`,
     [
       req.orgId, req.user.id, title, description,
       required_skills || [], nice_to_have_skills || [],
       experience_min, experience_max, location_city, location_state, location_country || 'US',
       remote_allowed || false, visa_requirements || [], pay_rate_min, pay_rate_max,
-      rate_type || 'hourly', job_type || 'contract', industry || [], client_org_id, end_client_org_id, deadline
+      client_bill_rate || null, rate_type || 'hourly', job_type || 'contract', industry || [],
+      client_org_id, end_client_org_id, deadline,
+      is_public || false, positions_count || 1, start_date || null
     ]
   );
 
@@ -113,7 +117,8 @@ router.post('/', requirePermission('CREATE_JOB'), async (req, res) => {
 router.patch('/:id', requirePermission('EDIT_JOB'), async (req, res) => {
   const allowed = ['title','description','required_skills','nice_to_have_skills',
     'experience_min','experience_max','location_city','location_state','remote_allowed',
-    'visa_requirements','pay_rate_min','pay_rate_max','rate_type','job_type','industry','status','deadline'];
+    'visa_requirements','pay_rate_min','pay_rate_max','client_bill_rate','rate_type',
+    'job_type','industry','status','deadline','is_public','positions_count','start_date'];
 
   const updates = {};
   for (const key of allowed) {

@@ -3,8 +3,9 @@
 
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "pgvector";
-CREATE EXTENSION IF NOT EXISTS "pg_trgm";
+-- pgvector and pg_trgm require additional installation, commenting out for basic setup
+-- CREATE EXTENSION IF NOT EXISTS "pgvector";
+-- CREATE EXTENSION IF NOT EXISTS "pg_trgm";
 
 -- ============================================================
 -- ENUMS
@@ -16,7 +17,7 @@ CREATE TYPE pipeline_stage AS ENUM ('submitted', 'client_review', 'shortlisted',
 CREATE TYPE supply_level AS ENUM ('high', 'moderate', 'low');
 CREATE TYPE notification_channel AS ENUM ('in_app', 'email', 'webhook');
 CREATE TYPE notification_status AS ENUM ('pending', 'sent', 'failed', 'read');
-CREATE TYPE upload_source AS ENUM ('direct', 'vendor', 'recruiter', 'linkedin');
+CREATE TYPE upload_source AS ENUM ('direct', 'vendor', 'recruiter', 'linkedin', 'self_applied');
 CREATE TYPE visa_status AS ENUM ('citizen', 'green_card', 'h1b', 'h4_ead', 'opt', 'stem_opt', 'l1', 'tn', 'other', 'unknown');
 
 -- ============================================================
@@ -156,8 +157,8 @@ CREATE TABLE candidates (
   ai_summary              TEXT,
   profile_completeness    INTEGER DEFAULT 0,
 
-  -- Embeddings for semantic search
-  profile_embedding       vector(1536),
+  -- Embeddings for semantic search (requires pgvector extension)
+  -- profile_embedding       vector(1536),
 
   -- Status
   is_active               BOOLEAN DEFAULT true,
@@ -178,7 +179,7 @@ CREATE INDEX idx_candidates_vendor ON candidates(vendor_org_id);
 CREATE INDEX idx_candidates_email ON candidates(email);
 CREATE INDEX idx_candidates_skills ON candidates USING GIN(skills);
 CREATE INDEX idx_candidates_industries ON candidates USING GIN(industry_experience);
-CREATE INDEX idx_candidates_embedding ON candidates USING ivfflat(profile_embedding vector_cosine_ops) WITH (lists = 100);
+-- CREATE INDEX idx_candidates_embedding ON candidates USING ivfflat(profile_embedding vector_cosine_ops) WITH (lists = 100);
 
 -- ============================================================
 -- RESUME FILES
@@ -238,8 +239,18 @@ CREATE TABLE jobs (
   supply_level          supply_level,
   supply_analysis       JSONB DEFAULT '{}',
 
-  -- Embeddings
-  job_embedding         vector(1536),
+  -- Embeddings (requires pgvector extension)
+  -- job_embedding         vector(1536),
+
+  -- Public job board
+  is_public             BOOLEAN DEFAULT false,
+
+  -- Client-facing fields
+  client_bill_rate      DECIMAL(10,2),
+  positions_count       INTEGER DEFAULT 1,
+  start_date            DATE,
+  client_poc            VARCHAR(255),
+  is_carry_forward      BOOLEAN DEFAULT false,
 
   metadata              JSONB DEFAULT '{}',
   deadline              DATE,
@@ -250,7 +261,7 @@ CREATE TABLE jobs (
 CREATE INDEX idx_jobs_org ON jobs(org_id);
 CREATE INDEX idx_jobs_status ON jobs(status);
 CREATE INDEX idx_jobs_skills ON jobs USING GIN(required_skills);
-CREATE INDEX idx_jobs_embedding ON jobs USING ivfflat(job_embedding vector_cosine_ops) WITH (lists = 100);
+-- CREATE INDEX idx_jobs_embedding ON jobs USING ivfflat(job_embedding vector_cosine_ops) WITH (lists = 100);
 
 -- ============================================================
 -- AI MATCHES
@@ -311,6 +322,27 @@ CREATE TABLE submissions (
   unlocked_by       UUID REFERENCES users(id),
   unlocked_at       TIMESTAMPTZ,
 
+  -- Source tracking
+  submission_source     VARCHAR(50) DEFAULT 'agency_direct',
+  vendor_org_id         UUID REFERENCES organizations(id),
+
+  -- Internal screening (agency-side, before client sees)
+  internal_stage        VARCHAR(50) DEFAULT 'new',
+  internal_stage_notes  TEXT,
+  internal_stage_updated_at TIMESTAMPTZ,
+  internal_stage_updated_by UUID REFERENCES users(id),
+
+  -- Rate layers
+  agency_pay_rate       DECIMAL(10,2),
+  vendor_pay_rate       DECIMAL(10,2),
+
+  -- Client review fields
+  sub_rate              DECIMAL(10,2),
+  client_status         VARCHAR(50) DEFAULT 'pending_review',
+  client_feedback       TEXT,
+  client_reviewed_by    UUID REFERENCES users(id),
+  client_reviewed_at    TIMESTAMPTZ,
+
   metadata          JSONB DEFAULT '{}',
   created_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
@@ -320,6 +352,7 @@ CREATE TABLE submissions (
 CREATE INDEX idx_submissions_job ON submissions(job_id);
 CREATE INDEX idx_submissions_candidate ON submissions(candidate_id);
 CREATE INDEX idx_submissions_stage ON submissions(stage);
+CREATE INDEX idx_submissions_client_status ON submissions(client_status);
 
 CREATE TABLE pipeline_history (
   id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -373,6 +406,26 @@ CREATE TABLE supply_predictions (
   similar_candidates    UUID[] DEFAULT '{}',
   created_at            TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- ============================================================
+-- CLIENT RELATIONSHIPS
+-- ============================================================
+
+CREATE TABLE client_relationships (
+  id                UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  agency_org_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  client_org_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  status            VARCHAR(50) DEFAULT 'active',
+  onboarded_by      UUID REFERENCES users(id),
+  contract_start    DATE,
+  contract_end      DATE,
+  terms             JSONB DEFAULT '{}',
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(agency_org_id, client_org_id)
+);
+
+CREATE INDEX idx_client_rel_agency ON client_relationships(agency_org_id);
+CREATE INDEX idx_client_rel_client ON client_relationships(client_org_id);
 
 -- ============================================================
 -- VENDOR RELATIONSHIPS

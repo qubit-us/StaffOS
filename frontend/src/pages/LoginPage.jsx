@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore.js';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
+import { GoogleLogin } from '@react-oauth/google';
 import { Zap, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -27,6 +28,20 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setLoading(true);
+    try {
+      const { data } = await api.post('/api/auth/google', { credential: credentialResponse.credential });
+      setAuth(data.user, data.token);
+      toast.success(`Welcome, ${data.user.firstName}!`);
+      navigate(data.user.orgType === 'client' ? '/client' : '/');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Google sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -35,12 +50,13 @@ export default function LoginPage() {
         const { data } = await api.post('/api/auth/login', { email, password });
         setAuth(data.user, data.token);
         toast.success(`Welcome back, ${data.user.firstName}!`);
+        navigate(data.user.orgType === 'client' ? '/client' : '/');
       } else {
         const { data } = await api.post('/api/auth/signup', { firstName, lastName, email, password, orgName });
         setAuth(data.user, data.token);
         toast.success(`Welcome, ${data.user.firstName}! Your account is ready.`);
+        navigate(data.user.orgType === 'client' ? '/client' : '/');
       }
-      navigate('/');
     } catch (err) {
       console.error('Auth error:', err.response?.status, err.response?.data, err.message);
       toast.error(err.response?.data?.error || err.message || (mode === 'login' ? 'Login failed' : 'Signup failed'));
@@ -131,6 +147,26 @@ export default function LoginPage() {
               {loading ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} />}
               {loading ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (mode === 'login' ? 'Sign in' : 'Create account')}
             </button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 my-1">
+              <div className="flex-1 h-px bg-surface-200" />
+              <span className="text-xs text-slate-400 font-medium">or</span>
+              <div className="flex-1 h-px bg-surface-200" />
+            </div>
+
+            {/* Google SSO */}
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => toast.error('Google sign-in failed. Please try again.')}
+                theme="outline"
+                size="large"
+                width="368"
+                text={mode === 'login' ? 'signin_with' : 'signup_with'}
+                shape="rectangular"
+              />
+            </div>
           </form>
 
           {/* Demo credentials (login mode only) */}
@@ -140,14 +176,22 @@ export default function LoginPage() {
               <div className="space-y-1.5 text-xs text-slate-600">
                 <div className="flex justify-between">
                   <span className="font-medium">Agency Admin:</span>
-                  <span className="font-mono">admin@talentbridge.io</span>
+                  <button className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('admin@talentbridge.io')}>admin@talentbridge.io</button>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Recruiter:</span>
-                  <span className="font-mono">recruiter@talentbridge.io</span>
+                  <button className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('recruiter@talentbridge.io')}>recruiter@talentbridge.io</button>
                 </div>
                 <div className="flex justify-between">
-                  <span className="font-medium">Password:</span>
+                  <span className="font-medium">Client Admin:</span>
+                  <button className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('admin@acme-msp.com')}>admin@acme-msp.com</button>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Vendor:</span>
+                  <button className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('vendor@techtalent.com')}>vendor@techtalent.com</button>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium">Password (all):</span>
                   <span className="font-mono">Password123!</span>
                 </div>
               </div>

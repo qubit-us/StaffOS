@@ -1,9 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
 import { Plus, Briefcase, MapPin, DollarSign, Users, Sparkles, Search, Loader2, X, ChevronUp, ChevronDown, ChevronsUpDown, Wifi } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { clsx } from 'clsx';
 
 const statusColors = {
@@ -99,8 +99,9 @@ function NewJobModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
     title: '', description: '', required_skills: '',
     experience_min: '', pay_rate_min: '', pay_rate_max: '',
+    client_bill_rate: '',
     location_city: '', location_state: '', remote_allowed: false,
-    job_type: 'contract', visa_requirements: [],
+    is_public: false, job_type: 'contract', visa_requirements: [],
   });
   const [saving, setSaving] = useState(false);
 
@@ -112,8 +113,9 @@ function NewJobModal({ onClose, onCreated }) {
         ...form,
         required_skills: form.required_skills.split(',').map(s => s.trim()).filter(Boolean),
         experience_min: form.experience_min ? parseFloat(form.experience_min) : null,
-        pay_rate_min: form.pay_rate_min ? parseFloat(form.pay_rate_min) : null,
-        pay_rate_max: form.pay_rate_max ? parseFloat(form.pay_rate_max) : null,
+        pay_rate_min:     form.pay_rate_min     ? parseFloat(form.pay_rate_min)     : null,
+        pay_rate_max:     form.pay_rate_max     ? parseFloat(form.pay_rate_max)     : null,
+        client_bill_rate: form.client_bill_rate ? parseFloat(form.client_bill_rate) : null,
       };
       const { data } = await api.post('/api/jobs', payload);
       toast.success('Job created! AI matching will run automatically.');
@@ -156,8 +158,13 @@ function NewJobModal({ onClose, onCreated }) {
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div><label className="label">Min Exp (yrs)</label><input className="input" type="number" placeholder="3" value={form.experience_min} onChange={set('experience_min')} /></div>
-            <div><label className="label">Rate Min ($/hr)</label><input className="input" type="number" placeholder="60" value={form.pay_rate_min} onChange={set('pay_rate_min')} /></div>
-            <div><label className="label">Rate Max ($/hr)</label><input className="input" type="number" placeholder="90" value={form.pay_rate_max} onChange={set('pay_rate_max')} /></div>
+            <div><label className="label">Pay Rate Min ($/hr)</label><input className="input" type="number" placeholder="60" value={form.pay_rate_min} onChange={set('pay_rate_min')} /></div>
+            <div><label className="label">Pay Rate Max ($/hr)</label><input className="input" type="number" placeholder="90" value={form.pay_rate_max} onChange={set('pay_rate_max')} /></div>
+          </div>
+          <div>
+            <label className="label">Client Bill Rate ($/hr)</label>
+            <p className="text-xs text-slate-400 mb-1">Internal — not shown to vendors</p>
+            <input className="input max-w-xs" type="number" placeholder="e.g. 95" value={form.client_bill_rate} onChange={set('client_bill_rate')} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><label className="label">City</label><input className="input" placeholder="New York" value={form.location_city} onChange={set('location_city')} /></div>
@@ -171,6 +178,10 @@ function NewJobModal({ onClose, onCreated }) {
           <label className="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" checked={form.remote_allowed} onChange={set('remote_allowed')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
             <span className="text-sm font-medium text-slate-700">Remote work allowed</span>
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" checked={form.is_public} onChange={set('is_public')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
+            <span className="text-sm font-medium text-slate-700">Post to public job board</span>
           </label>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
@@ -188,8 +199,10 @@ function NewJobModal({ onClose, onCreated }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function JobsPage() {
+  const [searchParams] = useSearchParams();
   const [showModal, setShowModal] = useState(false);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  useEffect(() => { setSearch(searchParams.get('search') || ''); }, [searchParams.get('search')]);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterRemote, setFilterRemote] = useState('');
@@ -243,9 +256,14 @@ export default function JobsPage() {
           <h2 className="text-2xl font-bold text-slate-900">Jobs</h2>
           <p className="text-slate-500 mt-0.5">{total} position{total !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
-          <Plus size={16} /> Post Job
-        </button>
+        <div className="flex items-center gap-2">
+          <Link to="/board" target="_blank" className="btn-secondary text-sm">
+            View Job Board
+          </Link>
+          <button onClick={() => setShowModal(true)} className="btn-primary">
+            <Plus size={16} /> Post Job
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -317,10 +335,11 @@ export default function JobsPage() {
                       <Link to={`/jobs/${job.id}`} className="font-semibold text-slate-900 hover:text-brand-600 transition-colors block truncate max-w-[240px]">
                         {job.title}
                       </Link>
-                      {(job.client_name || job.remote_allowed) && (
+                      {(job.client_name || job.remote_allowed || job.is_public) && (
                         <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
                           {job.client_name && <span>{job.client_name}</span>}
                           {job.remote_allowed && <span className="flex items-center gap-0.5 text-teal-600"><Wifi size={10} /> Remote</span>}
+                          {job.is_public && <span className="text-brand-500 font-medium">Public</span>}
                         </div>
                       )}
                     </td>
