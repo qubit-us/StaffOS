@@ -92,9 +92,17 @@ router.get('/me', authenticate, async (req, res) => {
       [req.user.id]
     );
 
+    const u = req.user;
     res.json({
       user: {
-        ...req.user,
+        id: u.id,
+        email: u.email,
+        firstName: u.first_name,
+        lastName: u.last_name,
+        orgId: u.org_id,
+        orgName: u.org_name,
+        orgSlug: u.org_slug,
+        orgType: u.org_type,
         permissions: perms.map(p => p.code),
         roles: roleRows.map(r => r.name),
       },
