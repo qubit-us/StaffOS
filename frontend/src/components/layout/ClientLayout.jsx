@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore.js';
@@ -13,8 +14,15 @@ const navItems = [
 ];
 
 export default function ClientLayout() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, token, setAuth } = useAuthStore();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token) return;
+    api.get('/api/auth/me').then(({ data }) => {
+      setAuth(data.user, token);
+    }).catch(() => {});
+  }, [token]);
 
   const { data: clientMe } = useQuery({
     queryKey: ['client-me'],
