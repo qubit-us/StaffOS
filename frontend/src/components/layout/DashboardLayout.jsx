@@ -8,14 +8,13 @@ import { useAuthStore } from '../../store/authStore.js';
 export default function DashboardLayout() {
   const { token, setAuth, user } = useAuthStore();
 
-  // Refresh user permissions from server on every app load.
+  // Refresh user permissions on every app load.
   // Normalizes both camelCase and snake_case API responses for resilience.
   useEffect(() => {
     if (!token) return;
     api.get('/api/auth/me').then(({ data }) => {
       const u = data.user;
       if (!u) return;
-      // Support both new camelCase and old snake_case /me responses
       const normalized = {
         id:          u.id,
         email:       u.email,
