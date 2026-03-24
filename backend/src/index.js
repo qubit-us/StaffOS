@@ -9,6 +9,12 @@ import authRoutes from './routes/auth.js';
 import jobRoutes from './routes/jobs.js';
 import candidateRoutes from './routes/candidates.js';
 import submissionRoutes from './routes/submissions.js';
+import clientRoutes from './routes/clients.js';
+import vendorRoutes from './routes/vendors.js';
+import clientPortalRoutes from './routes/clientPortal.js';
+import publicRoutes from './routes/public.js';
+import dashboardRoutes from './routes/dashboard.js';
+import adminRoutes from './routes/admin.js';
 import { mkdirSync } from 'fs';
 
 // Ensure upload dir exists
@@ -43,6 +49,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/candidates', candidateRoutes);
 app.use('/api/submissions', submissionRoutes);
+app.use('/api/clients', clientRoutes);
+app.use('/api/vendors', vendorRoutes);
+app.use('/api/client-portal', clientPortalRoutes);
+app.use('/api/public', publicRoutes);
+app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Health
 app.get('/health', (_, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }));

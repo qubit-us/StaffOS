@@ -119,9 +119,11 @@ function EditJobModal({ job, onClose, onSaved }) {
     experience_max:      job.experience_max || '',
     pay_rate_min:        job.pay_rate_min || '',
     pay_rate_max:        job.pay_rate_max || '',
+    client_bill_rate:    job.client_bill_rate || '',
     location_city:       job.location_city || '',
     location_state:      job.location_state || '',
     remote_allowed:      job.remote_allowed || false,
+    is_public:           job.is_public || false,
     status:              job.status || 'open',
     deadline:            job.deadline ? job.deadline.split('T')[0] : '',
     job_type:            job.job_type || 'contract',
@@ -141,9 +143,10 @@ function EditJobModal({ job, onClose, onSaved }) {
         nice_to_have_skills: form.nice_to_have_skills.split(',').map(s => s.trim()).filter(Boolean),
         experience_min: form.experience_min ? parseFloat(form.experience_min) : null,
         experience_max: form.experience_max ? parseFloat(form.experience_max) : null,
-        pay_rate_min:   form.pay_rate_min   ? parseFloat(form.pay_rate_min)   : null,
-        pay_rate_max:   form.pay_rate_max   ? parseFloat(form.pay_rate_max)   : null,
-        deadline:       form.deadline || null,
+        pay_rate_min:      form.pay_rate_min      ? parseFloat(form.pay_rate_min)      : null,
+        pay_rate_max:      form.pay_rate_max      ? parseFloat(form.pay_rate_max)      : null,
+        client_bill_rate:  form.client_bill_rate  ? parseFloat(form.client_bill_rate)  : null,
+        deadline:          form.deadline || null,
       };
       const { data } = await api.patch(`/api/jobs/${job.id}`, payload);
       toast.success('Job updated');
@@ -216,13 +219,18 @@ function EditJobModal({ job, onClose, onSaved }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Rate Min ($/hr)</label>
+              <label className="label">Pay Rate Min ($/hr)</label>
               <input className="input" type="number" value={form.pay_rate_min} onChange={set('pay_rate_min')} />
             </div>
             <div>
-              <label className="label">Rate Max ($/hr)</label>
+              <label className="label">Pay Rate Max ($/hr)</label>
               <input className="input" type="number" value={form.pay_rate_max} onChange={set('pay_rate_max')} />
             </div>
+          </div>
+          <div>
+            <label className="label">Client Bill Rate ($/hr)</label>
+            <p className="text-xs text-slate-400 mb-1">Internal — not visible to vendors or candidates</p>
+            <input className="input max-w-xs" type="number" placeholder="e.g. 95" value={form.client_bill_rate} onChange={set('client_bill_rate')} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -241,6 +249,10 @@ function EditJobModal({ job, onClose, onSaved }) {
           <label className="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" checked={form.remote_allowed} onChange={set('remote_allowed')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
             <span className="text-sm font-medium text-slate-700">Remote work allowed</span>
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" checked={form.is_public} onChange={set('is_public')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
+            <span className="text-sm font-medium text-slate-700">Post to public job board</span>
           </label>
           <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>

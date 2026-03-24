@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import api from '../lib/api.js';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Users, Search, Upload, ChevronUp, ChevronDown, ChevronsUpDown, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -77,7 +77,9 @@ function CompletenessBar({ value }) {
 }
 
 export default function CandidatesPage() {
-  const [search, setSearch]       = useState('');
+  const [searchParams] = useSearchParams();
+  const [search, setSearch]       = useState(searchParams.get('search') || '');
+  useEffect(() => { setSearch(searchParams.get('search') || ''); }, [searchParams.get('search')]);
   const [visaFilter, setVisa]     = useState('');
   const [sourceFilter, setSource] = useState('');
   const [sortField, setSortField] = useState('created_at');
