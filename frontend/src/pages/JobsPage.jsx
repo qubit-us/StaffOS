@@ -102,8 +102,14 @@ function NewJobModal({ onClose, onCreated }) {
     client_bill_rate: '',
     location_city: '', location_state: '', remote_allowed: false,
     is_public: false, job_type: 'contract', visa_requirements: [],
+    client_org_id: '',
   });
   const [saving, setSaving] = useState(false);
+
+  const { data: clientsData } = useQuery({
+    queryKey: ['clients-dropdown'],
+    queryFn: () => api.get('/api/clients?limit=100').then(r => r.data),
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -112,10 +118,11 @@ function NewJobModal({ onClose, onCreated }) {
       const payload = {
         ...form,
         required_skills: form.required_skills.split(',').map(s => s.trim()).filter(Boolean),
-        experience_min: form.experience_min ? parseFloat(form.experience_min) : null,
+        experience_min:   form.experience_min   ? parseFloat(form.experience_min)   : null,
         pay_rate_min:     form.pay_rate_min     ? parseFloat(form.pay_rate_min)     : null,
         pay_rate_max:     form.pay_rate_max     ? parseFloat(form.pay_rate_max)     : null,
         client_bill_rate: form.client_bill_rate ? parseFloat(form.client_bill_rate) : null,
+        client_org_id:    form.client_org_id    || null,
       };
       const { data } = await api.post('/api/jobs', payload);
       toast.success('Job created! AI matching will run automatically.');
@@ -146,6 +153,16 @@ function NewJobModal({ onClose, onCreated }) {
             <label className="label">Job Type</label>
             <select className="input" value={form.job_type} onChange={set('job_type')}>
               {JOB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label">Client</label>
+            <p className="text-xs text-slate-400 mb-1">Who is this job being recruited for?</p>
+            <select className="input" value={form.client_org_id} onChange={set('client_org_id')}>
+              <option value="">Internal (recruiting for ourselves)</option>
+              {(clientsData?.clients || []).map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
             </select>
           </div>
           <div>

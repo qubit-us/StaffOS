@@ -176,19 +176,19 @@ export default function LoginPage() {
               <div className="space-y-1.5 text-xs text-slate-600">
                 <div className="flex justify-between">
                   <span className="font-medium">Agency Admin:</span>
-                  <button className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('admin@talentbridge.io')}>admin@talentbridge.io</button>
+                  <button type="button" className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('admin@talentbridge.io')}>admin@talentbridge.io</button>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Recruiter:</span>
-                  <button className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('recruiter@talentbridge.io')}>recruiter@talentbridge.io</button>
+                  <button type="button" className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('recruiter@talentbridge.io')}>recruiter@talentbridge.io</button>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Client Admin:</span>
-                  <button className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('admin@acme-msp.com')}>admin@acme-msp.com</button>
+                  <button type="button" className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('admin@acme-msp.com')}>admin@acme-msp.com</button>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Vendor:</span>
-                  <button className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('vendor@techtalent.com')}>vendor@techtalent.com</button>
+                  <button type="button" className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('vendor@techtalent.com')}>vendor@techtalent.com</button>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium">Password (all):</span>

@@ -89,7 +89,7 @@ router.post('/', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
     if (!poc_email) return res.status(400).json({ error: 'Point of contact email is required' });
 
     const bcrypt = await import('bcryptjs');
-    const passwordHash = await bcrypt.default.hash('TempPass123!', 12);
+    const passwordHash = await bcrypt.default.hash('Password123!', 12);
 
     const result = await db.transaction(async (conn) => {
       // 1. Create the client organization
@@ -168,7 +168,7 @@ router.post('/', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
       organization: result.org,
       poc_user: result.pocUser,
       users_created: result.usersCreated,
-      message: `Client onboarded successfully. All users have temporary password: TempPass123!`,
+      message: `Client onboarded successfully. All users have temporary password: Password123!`,
     });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'A user with this email already exists' });
