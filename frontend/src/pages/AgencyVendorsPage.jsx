@@ -1,117 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../lib/api.js';
-import toast from 'react-hot-toast';
-import { Plus, Search, Store, Users, X, Loader2 } from 'lucide-react';
+import { Plus, Search, Store } from 'lucide-react';
+import OnboardVendorModal from './admin/OnboardVendorModal.jsx';
 
 const statusColors = {
   active:   'bg-emerald-100 text-emerald-700',
   inactive: 'bg-slate-100 text-slate-500',
   pending:  'bg-amber-100 text-amber-700',
 };
-
-function OnboardVendorModal({ onClose }) {
-  const qc = useQueryClient();
-  const [form, setForm] = useState({
-    name: '', domain: '', website: '',
-    poc_first_name: '', poc_last_name: '', poc_email: '',
-  });
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-
-  const { mutate, isPending } = useMutation({
-    mutationFn: (data) => api.post('/api/vendors', data).then(r => r.data),
-    onSuccess: (data) => {
-      toast.success(`${data.organization.name} onboarded! Login: ${data.poc_user.email} / TempPass123!`);
-      qc.invalidateQueries({ queryKey: ['agency-vendors'] });
-      onClose();
-    },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to onboard vendor'),
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    mutate(form);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
-        <div className="flex items-center justify-between p-6 border-b border-surface-200">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Onboard New Vendor</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Create a vendor org and their point-of-contact login</p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-100 transition-colors">
-            <X size={18} className="text-slate-500" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
-          {/* Company info */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Vendor Details</p>
-            <div className="space-y-3">
-              <div>
-                <label className="label">Vendor Name *</label>
-                <input className="input" required value={form.name}
-                  onChange={e => set('name', e.target.value)} placeholder="TechTalent Vendors Inc" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">Domain</label>
-                  <input className="input" value={form.domain}
-                    onChange={e => set('domain', e.target.value)} placeholder="techtalent.com" />
-                </div>
-                <div>
-                  <label className="label">Website</label>
-                  <input className="input" value={form.website}
-                    onChange={e => set('website', e.target.value)} placeholder="https://techtalent.com" />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* POC info */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Point of Contact</p>
-            <p className="text-xs text-slate-400 mb-3">
-              A login will be created with temporary password <span className="font-mono font-semibold">TempPass123!</span>
-            </p>
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="label">First Name</label>
-                  <input className="input" value={form.poc_first_name}
-                    onChange={e => set('poc_first_name', e.target.value)} placeholder="John" />
-                </div>
-                <div>
-                  <label className="label">Last Name</label>
-                  <input className="input" value={form.poc_last_name}
-                    onChange={e => set('poc_last_name', e.target.value)} placeholder="Doe" />
-                </div>
-              </div>
-              <div>
-                <label className="label">Email Address *</label>
-                <input className="input" type="email" required value={form.poc_email}
-                  onChange={e => set('poc_email', e.target.value)} placeholder="john@techtalent.com" />
-              </div>
-            </div>
-          </div>
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 btn-secondary">Cancel</button>
-            <button type="submit" disabled={isPending}
-              className="flex-1 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
-              {isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-              {isPending ? 'Onboarding...' : 'Onboard Vendor'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 export default function AgencyVendorsPage({ showOnboard = false }) {
   const [searchParams] = useSearchParams();

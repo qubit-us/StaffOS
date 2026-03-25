@@ -13,23 +13,25 @@ const INDUSTRIES = [
 
 const COMPANY_SIZES = ['1–10', '11–50', '51–200', '201–500', '501–1,000', '1,001–5,000', '5,000+'];
 
-const PAYMENT_TERMS = [
-  { value: 15,  label: 'Net 15' },
-  { value: 30,  label: 'Net 30' },
-  { value: 45,  label: 'Net 45' },
-  { value: 60,  label: 'Net 60' },
-  { value: 90,  label: 'Net 90' },
+const SPECIALIZATIONS = [
+  'Java', 'Python', 'JavaScript / React', '.NET / C#', 'DevOps / Cloud',
+  'Data Engineering', 'Machine Learning / AI', 'SAP', 'Salesforce',
+  'Healthcare IT', 'Cybersecurity', 'QA / Testing', 'Mobile (iOS / Android)', 'Other',
 ];
 
-const CLIENT_ROLES = ['Client Admin', 'Hiring Manager', 'Viewer'];
+const PLACEMENT_TYPES = ['Contract', 'Contract-to-Hire', 'Permanent'];
+
+const VISA_TYPES = ['USC', 'GC', 'H1B', 'EAD', 'TN', 'OPT', 'H4 EAD'];
+
+const VENDOR_ROLES = ['Vendor Admin', 'Vendor Recruiter'];
 
 const TABS = [
-  { id: 1, label: 'Company & Address', icon: Building2 },
-  { id: 2, label: 'Legal & Billing',   icon: Scale      },
-  { id: 3, label: 'Team & Access',     icon: Users      },
+  { id: 1, label: 'Company & Skills',    icon: Building2 },
+  { id: 2, label: 'Agreement & Terms',   icon: Scale      },
+  { id: 3, label: 'Team & Access',       icon: Users      },
 ];
 
-const EMPTY_USER = { first_name: '', last_name: '', email: '', role: 'Hiring Manager' };
+const EMPTY_USER = { first_name: '', last_name: '', email: '', role: 'Vendor Recruiter' };
 
 function FieldRow({ children }) {
   return <div className="grid grid-cols-2 gap-3">{children}</div>;
@@ -46,28 +48,52 @@ function Field({ label, required, children }) {
   );
 }
 
-export default function OnboardClientModal({ onClose }) {
+function ToggleChip({ label, selected, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
+        selected
+          ? 'bg-brand-600 border-brand-600 text-white'
+          : 'bg-white border-surface-200 text-slate-500 hover:border-brand-300 hover:text-brand-600'
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
+export default function OnboardVendorModal({ onClose }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState(1);
   const [errors, setErrors] = useState({});
 
   const [form, setForm] = useState({
     // Tab 1
-    name: '', phone: '', website: '', industry: '', company_size: '',
-    address_street: '', address_suite: '', address_city: '',
-    address_state: '', address_zip: '', address_country: 'US',
+    name: '', phone: '', website: '', domain: '', industry: '', company_size: '',
+    specializations: [], placement_types: [],
     // Tab 2
-    ein: '', contract_type: 'both', net_payment_terms: 30,
-    contract_start: '', contract_end: '',
+    contract_type: 'both', contract_start: '', contract_end: '',
+    margin_cap: '', preferred_visas: [], notes: '',
     // Tab 3
-    account_manager_id: '', notes: '',
+    account_manager_id: '',
     poc_first_name: '', poc_last_name: '', poc_email: '',
     additional_users: [],
   });
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: '' })); };
 
-  // Fetch agency users for account manager dropdown
+  const toggleArray = (key, value) => {
+    setForm(f => ({
+      ...f,
+      [key]: f[key].includes(value)
+        ? f[key].filter(v => v !== value)
+        : [...f[key], value],
+    }));
+  };
+
   const { data: usersData } = useQuery({
     queryKey: ['admin-users'],
     queryFn: () => api.get('/api/admin/users').then(r => r.data),
@@ -75,16 +101,15 @@ export default function OnboardClientModal({ onClose }) {
   const agencyUsers = usersData?.users || [];
 
   const { mutate, isPending } = useMutation({
-    mutationFn: (data) => api.post('/api/clients', data).then(r => r.data),
+    mutationFn: (data) => api.post('/api/vendors', data).then(r => r.data),
     onSuccess: (data) => {
       toast.success(`${data.organization.name} onboarded! ${data.users_created} user(s) created.`);
-      qc.invalidateQueries({ queryKey: ['agency-clients'] });
+      qc.invalidateQueries({ queryKey: ['agency-vendors'] });
       onClose();
     },
-    onError: (err) => toast.error(err.response?.data?.error || 'Failed to onboard client'),
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to onboard vendor'),
   });
 
-  // ── Validation ──────────────────────────────────────────────
   const validate = (tabId) => {
     const e = {};
     if (tabId === 1 && !form.name.trim()) e.name = 'Company name is required';
@@ -100,7 +125,7 @@ export default function OnboardClientModal({ onClose }) {
     if (!validate(3)) return;
     mutate({
       ...form,
-      net_payment_terms: parseInt(form.net_payment_terms),
+      margin_cap: form.margin_cap ? parseFloat(form.margin_cap) : undefined,
       account_manager_id: form.account_manager_id || undefined,
       contract_start: form.contract_start || undefined,
       contract_end:   form.contract_end   || undefined,
@@ -108,10 +133,9 @@ export default function OnboardClientModal({ onClose }) {
     });
   };
 
-  // ── Additional users helpers ────────────────────────────────
-  const addUser = () => setForm(f => ({ ...f, additional_users: [...f.additional_users, { ...EMPTY_USER }] }));
+  const addUser    = () => setForm(f => ({ ...f, additional_users: [...f.additional_users, { ...EMPTY_USER }] }));
   const removeUser = (i) => setForm(f => ({ ...f, additional_users: f.additional_users.filter((_, idx) => idx !== i) }));
-  const setUser = (i, k, v) => setForm(f => {
+  const setUser    = (i, k, v) => setForm(f => {
     const users = [...f.additional_users];
     users[i] = { ...users[i], [k]: v };
     return { ...f, additional_users: users };
@@ -124,7 +148,7 @@ export default function OnboardClientModal({ onClose }) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-surface-200 shrink-0">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Onboard New Client</h2>
+            <h2 className="text-lg font-bold text-slate-900">Onboard New Vendor</h2>
             <p className="text-xs text-slate-400 mt-0.5">Step {tab} of {TABS.length}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-100 transition-colors">
@@ -137,6 +161,7 @@ export default function OnboardClientModal({ onClose }) {
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              type="button"
               onClick={() => id < tab && setTab(id)}
               className={clsx(
                 'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold border-b-2 transition-colors',
@@ -161,13 +186,13 @@ export default function OnboardClientModal({ onClose }) {
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
 
-          {/* ── TAB 1: Company & Address ── */}
+          {/* ── TAB 1: Company & Skills ── */}
           {tab === 1 && (
             <>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Company Details</p>
               <Field label="Company Name" required>
                 <input className={clsx('input', errors.name && 'border-red-400')} value={form.name}
-                  onChange={e => set('name', e.target.value)} placeholder="Acme Corporation" />
+                  onChange={e => set('name', e.target.value)} placeholder="TechTalent Staffing Inc." />
                 {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
               </Field>
               <FieldRow>
@@ -191,60 +216,57 @@ export default function OnboardClientModal({ onClose }) {
                 </Field>
                 <Field label="Website">
                   <input className="input" value={form.website}
-                    onChange={e => set('website', e.target.value)} placeholder="https://acme.com" />
+                    onChange={e => set('website', e.target.value)} placeholder="https://techtalent.com" />
                 </Field>
               </FieldRow>
+              <Field label="Domain">
+                <input className="input" value={form.domain}
+                  onChange={e => set('domain', e.target.value)} placeholder="techtalent.com" />
+              </Field>
 
               <div className="pt-2 border-t border-surface-100">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Address</p>
-              </div>
-              <Field label="Street Address">
-                <input className="input" value={form.address_street}
-                  onChange={e => set('address_street', e.target.value)} placeholder="123 Main Street" />
-              </Field>
-              <Field label="Suite / Floor / Unit">
-                <input className="input" value={form.address_suite}
-                  onChange={e => set('address_suite', e.target.value)} placeholder="Suite 400" />
-              </Field>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="col-span-1">
-                  <Field label="City">
-                    <input className="input" value={form.address_city}
-                      onChange={e => set('address_city', e.target.value)} placeholder="New York" />
-                  </Field>
-                </div>
-                <div>
-                  <Field label="State">
-                    <input className="input" value={form.address_state}
-                      onChange={e => set('address_state', e.target.value)} placeholder="NY" />
-                  </Field>
-                </div>
-                <div>
-                  <Field label="ZIP Code">
-                    <input className="input" value={form.address_zip}
-                      onChange={e => set('address_zip', e.target.value)} placeholder="10001" />
-                  </Field>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Specializations</p>
+                <p className="text-xs text-slate-400 mb-3">Select the skill areas this vendor primarily sources from.</p>
+                <div className="flex flex-wrap gap-2">
+                  {SPECIALIZATIONS.map(s => (
+                    <ToggleChip key={s} label={s}
+                      selected={form.specializations.includes(s)}
+                      onClick={() => toggleArray('specializations', s)} />
+                  ))}
                 </div>
               </div>
-              <Field label="Country">
-                <input className="input" value={form.address_country}
-                  onChange={e => set('address_country', e.target.value)} placeholder="US" />
-              </Field>
+
+              <div className="pt-2 border-t border-surface-100">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Placement Types</p>
+                <div className="flex gap-3 flex-wrap">
+                  {PLACEMENT_TYPES.map(p => (
+                    <ToggleChip key={p} label={p}
+                      selected={form.placement_types.includes(p)}
+                      onClick={() => toggleArray('placement_types', p)} />
+                  ))}
+                </div>
+              </div>
             </>
           )}
 
-          {/* ── TAB 2: Legal & Billing ── */}
+          {/* ── TAB 2: Agreement & Terms ── */}
           {tab === 2 && (
             <>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Legal</p>
-              <Field label="EIN (Employer Identification Number)">
-                <input className="input font-mono" value={form.ein}
-                  onChange={e => set('ein', e.target.value)} placeholder="XX-XXXXXXX" />
-              </Field>
-
-              <div className="pt-2 border-t border-surface-100">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Contract</p>
-              </div>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Contract</p>
+              <FieldRow>
+                <Field label="Contract Type">
+                  <select className="input" value={form.contract_type} onChange={e => set('contract_type', e.target.value)}>
+                    <option value="both">W2 &amp; Corp-to-Corp</option>
+                    <option value="w2">W2 Only</option>
+                    <option value="c2c">Corp-to-Corp Only</option>
+                  </select>
+                </Field>
+                <Field label="Margin Cap (%)">
+                  <input className="input" type="number" min="0" max="100" step="0.5"
+                    value={form.margin_cap} onChange={e => set('margin_cap', e.target.value)}
+                    placeholder="e.g. 25" />
+                </Field>
+              </FieldRow>
               <FieldRow>
                 <Field label="Contract Start">
                   <input className="input" type="date" value={form.contract_start}
@@ -257,22 +279,24 @@ export default function OnboardClientModal({ onClose }) {
               </FieldRow>
 
               <div className="pt-2 border-t border-surface-100">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Billing</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Preferred Visa Types</p>
+                <p className="text-xs text-slate-400 mb-3">Worker categories this vendor primarily supplies.</p>
+                <div className="flex flex-wrap gap-2">
+                  {VISA_TYPES.map(v => (
+                    <ToggleChip key={v} label={v}
+                      selected={form.preferred_visas.includes(v)}
+                      onClick={() => toggleArray('preferred_visas', v)} />
+                  ))}
+                </div>
               </div>
-              <FieldRow>
-                <Field label="Contract Type">
-                  <select className="input" value={form.contract_type} onChange={e => set('contract_type', e.target.value)}>
-                    <option value="both">W2 & Corp-to-Corp</option>
-                    <option value="w2">W2 Only</option>
-                    <option value="c2c">Corp-to-Corp Only</option>
-                  </select>
+
+              <div className="pt-2 border-t border-surface-100">
+                <Field label="Notes">
+                  <textarea className="input resize-none min-h-[80px] text-sm" value={form.notes}
+                    onChange={e => set('notes', e.target.value)}
+                    placeholder="Special terms, escalation contacts, submission guidelines..." />
                 </Field>
-                <Field label="Net Payment Terms">
-                  <select className="input" value={form.net_payment_terms} onChange={e => set('net_payment_terms', e.target.value)}>
-                    {PAYMENT_TERMS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </Field>
-              </FieldRow>
+              </div>
             </>
           )}
 
@@ -291,18 +315,13 @@ export default function OnboardClientModal({ onClose }) {
                 </Field>
                 <div />
               </FieldRow>
-              <Field label="Notes">
-                <textarea className="input resize-none min-h-[70px] text-sm" value={form.notes}
-                  onChange={e => set('notes', e.target.value)}
-                  placeholder="Any special terms, escalation contacts, context for the team..." />
-              </Field>
 
               <div className="pt-2 border-t border-surface-100">
-                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">
                   Primary Point of Contact <span className="text-red-400">*</span>
                 </p>
                 <p className="text-xs text-slate-400 mb-3">
-                  Will be created as <span className="font-semibold text-slate-600">Client Admin</span> with full portal access.
+                  Will be created as <span className="font-semibold text-slate-600">Vendor Admin</span> with full portal access.
                   Default password: <span className="font-mono font-semibold">Password123!</span>
                 </p>
               </div>
@@ -320,7 +339,7 @@ export default function OnboardClientModal({ onClose }) {
                 <Field label="Email Address" required>
                   <input className={clsx('input bg-white', errors.poc_email && 'border-red-400')}
                     type="email" value={form.poc_email}
-                    onChange={e => set('poc_email', e.target.value)} placeholder="jane@acme.com" />
+                    onChange={e => set('poc_email', e.target.value)} placeholder="jane@techtalent.com" />
                   {errors.poc_email && <p className="text-xs text-red-500 mt-1">{errors.poc_email}</p>}
                 </Field>
               </div>
@@ -329,7 +348,7 @@ export default function OnboardClientModal({ onClose }) {
               <div className="pt-2 border-t border-surface-100">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Additional Team Members</p>
-                  <button onClick={addUser}
+                  <button type="button" onClick={addUser}
                     className="flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors">
                     <Plus size={13} /> Add User
                   </button>
@@ -347,7 +366,7 @@ export default function OnboardClientModal({ onClose }) {
                   <div key={i} className="p-4 rounded-xl border border-surface-200 bg-surface-50 space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold text-slate-600">User {i + 2}</p>
-                      <button onClick={() => removeUser(i)} className="text-slate-400 hover:text-red-500 transition-colors">
+                      <button type="button" onClick={() => removeUser(i)} className="text-slate-400 hover:text-red-500 transition-colors">
                         <Trash2 size={14} />
                       </button>
                     </div>
@@ -364,12 +383,12 @@ export default function OnboardClientModal({ onClose }) {
                     <FieldRow>
                       <Field label="Email Address">
                         <input className="input bg-white text-sm" type="email" value={u.email}
-                          onChange={e => setUser(i, 'email', e.target.value)} placeholder="john@acme.com" />
+                          onChange={e => setUser(i, 'email', e.target.value)} placeholder="john@techtalent.com" />
                       </Field>
                       <Field label="Role">
                         <select className="input bg-white text-sm" value={u.role}
                           onChange={e => setUser(i, 'role', e.target.value)}>
-                          {CLIENT_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                          {VENDOR_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
                         </select>
                       </Field>
                     </FieldRow>
@@ -381,9 +400,8 @@ export default function OnboardClientModal({ onClose }) {
               <div className="rounded-xl border border-surface-200 p-4 bg-surface-50">
                 <p className="text-xs font-semibold text-slate-500 mb-2">Role Permissions</p>
                 <div className="space-y-1.5 text-xs text-slate-500">
-                  <div><span className="font-semibold text-slate-700">Client Admin</span> — Full access: view, create requirements, review & approve candidates</div>
-                  <div><span className="font-semibold text-slate-700">Hiring Manager</span> — View submissions, review & approve candidates, request interviews</div>
-                  <div><span className="font-semibold text-slate-700">Viewer</span> — Read-only access to submissions and requirements</div>
+                  <div><span className="font-semibold text-slate-700">Vendor Admin</span> — Full access: upload resumes, submit candidates, view pipeline & notifications</div>
+                  <div><span className="font-semibold text-slate-700">Vendor Recruiter</span> — Upload resumes and submit candidates only</div>
                 </div>
               </div>
             </>
@@ -393,23 +411,23 @@ export default function OnboardClientModal({ onClose }) {
         {/* Footer navigation */}
         <div className="px-6 py-4 border-t border-surface-200 flex gap-3 shrink-0">
           {tab > 1 ? (
-            <button onClick={goBack} className="flex items-center gap-1.5 btn-secondary">
+            <button type="button" onClick={goBack} className="flex items-center gap-1.5 btn-secondary">
               <ChevronLeft size={16} /> Back
             </button>
           ) : (
-            <button onClick={onClose} className="btn-secondary">Cancel</button>
+            <button type="button" onClick={onClose} className="btn-secondary">Cancel</button>
           )}
           <div className="flex-1" />
           {tab < TABS.length ? (
-            <button onClick={goNext}
+            <button type="button" onClick={goNext}
               className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors">
               Next <ChevronRight size={16} />
             </button>
           ) : (
-            <button onClick={handleSubmit} disabled={isPending}
+            <button type="button" onClick={handleSubmit} disabled={isPending}
               className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors">
               {isPending ? <Loader2 size={16} className="animate-spin" /> : <Building2 size={16} />}
-              {isPending ? 'Onboarding...' : 'Onboard Client'}
+              {isPending ? 'Onboarding...' : 'Onboard Vendor'}
             </button>
           )}
         </div>

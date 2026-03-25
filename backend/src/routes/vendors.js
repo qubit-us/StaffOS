@@ -70,73 +70,102 @@ router.get('/:id', requirePermission('MANAGE_VENDORS'), async (req, res) => {
 
 // POST /api/vendors — onboard a new vendor
 router.post('/', requirePermission('MANAGE_VENDORS'), async (req, res) => {
-  const client = await db.connect();
   try {
-    await client.query('BEGIN');
+    const {
+      name, phone, website, domain, industry, company_size,
+      specializations, placement_types, preferred_visas,
+      contract_type, contract_start, contract_end, margin_cap, notes,
+      account_manager_id,
+      poc_first_name, poc_last_name, poc_email,
+      additional_users = [],
+    } = req.body;
 
-    const { name, domain, website, terms,
-            poc_first_name, poc_last_name, poc_email } = req.body;
-
-    if (!name) return res.status(400).json({ error: 'Vendor name is required' });
+    if (!name)      return res.status(400).json({ error: 'Vendor name is required' });
     if (!poc_email) return res.status(400).json({ error: 'Point of contact email is required' });
 
-    // Create the vendor organization
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
-    const { rows: [org] } = await client.query(
-      `INSERT INTO organizations (name, slug, org_type, domain, website)
-       VALUES ($1, $2, 'vendor', $3, $4) RETURNING *`,
-      [name, slug, domain, website]
-    );
-
-    // Create the vendor relationship
-    await client.query(
-      `INSERT INTO vendor_relationships (agency_org_id, vendor_org_id, onboarded_by, terms)
-       VALUES ($1, $2, $3, $4)`,
-      [req.orgId, org.id, req.user.id, JSON.stringify(terms || {})]
-    );
-
-    // Create POC user account (password: TempPass123!)
     const bcrypt = await import('bcryptjs');
-    const passwordHash = await bcrypt.default.hash('TempPass123!', 12);
-    const { rows: [pocUser] } = await client.query(
-      `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified)
-       VALUES ($1, $2, $3, $4, $5, true) RETURNING id, email, first_name, last_name`,
-      [org.id, poc_email, passwordHash, poc_first_name || '', poc_last_name || '']
-    );
+    const passwordHash = await bcrypt.default.hash('Password123!', 12);
 
-    // Create Vendor Admin role with permissions
-    const { rows: [role] } = await client.query(
-      `INSERT INTO roles (org_id, name, description, is_default)
-       VALUES ($1, 'Vendor Admin', 'Full vendor access', false) RETURNING id`,
-      [org.id]
-    );
+    const result = await db.transaction(async (conn) => {
+      // 1. Create the vendor organization
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
+      const { rows: [org] } = await conn.query(
+        `INSERT INTO organizations (name, slug, org_type, domain, website, phone, industry, company_size)
+         VALUES ($1, $2, 'vendor', $3, $4, $5, $6, $7) RETURNING *`,
+        [name, slug, domain || null, website || null, phone || null, industry || null, company_size || null]
+      );
 
-    await client.query(
-      `INSERT INTO role_permissions (role_id, permission_id)
-       SELECT $1, id FROM permissions
-       WHERE code IN ('UPLOAD_RESUME','SUBMIT_CANDIDATE','VIEW_CANDIDATES',
-                      'VIEW_PIPELINE','VIEW_NOTIFICATIONS')`,
-      [role.id]
-    );
+      // 2. Create the vendor relationship (extended fields stored in terms JSONB)
+      const terms = {
+        contract_type:   contract_type   || 'both',
+        contract_start:  contract_start  || null,
+        contract_end:    contract_end    || null,
+        margin_cap:      margin_cap      ? parseFloat(margin_cap) : null,
+        notes:           notes           || null,
+        specializations: specializations || [],
+        placement_types: placement_types || [],
+        preferred_visas: preferred_visas || [],
+        account_manager_id: account_manager_id || null,
+      };
+      await conn.query(
+        `INSERT INTO vendor_relationships (agency_org_id, vendor_org_id, onboarded_by, terms)
+         VALUES ($1, $2, $3, $4)`,
+        [req.orgId, org.id, req.user.id, JSON.stringify(terms)]
+      );
 
-    await client.query(
-      `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`,
-      [pocUser.id, role.id]
-    );
+      // 3. Create predefined vendor roles
+      const ROLE_PERMISSIONS = {
+        'Vendor Admin':     `('UPLOAD_RESUME','SUBMIT_CANDIDATE','VIEW_CANDIDATES','VIEW_PIPELINE','VIEW_NOTIFICATIONS')`,
+        'Vendor Recruiter': `('UPLOAD_RESUME','SUBMIT_CANDIDATE','VIEW_CANDIDATES','VIEW_NOTIFICATIONS')`,
+      };
+      const createdRoles = {};
+      for (const [roleName, permsIn] of Object.entries(ROLE_PERMISSIONS)) {
+        const { rows: [role] } = await conn.query(
+          `INSERT INTO roles (org_id, name, description) VALUES ($1, $2, $3) RETURNING id`,
+          [org.id, roleName, `${roleName} — vendor portal access`]
+        );
+        await conn.query(
+          `INSERT INTO role_permissions (role_id, permission_id)
+           SELECT $1, id FROM permissions WHERE code IN ${permsIn}`,
+          [role.id]
+        );
+        createdRoles[roleName] = role.id;
+      }
 
-    await client.query('COMMIT');
+      // 4. Create POC user as Vendor Admin
+      const { rows: [pocUser] } = await conn.query(
+        `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified)
+         VALUES ($1, $2, $3, $4, $5, true) RETURNING id, email, first_name, last_name`,
+        [org.id, poc_email.toLowerCase(), passwordHash, poc_first_name || '', poc_last_name || '']
+      );
+      await conn.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [pocUser.id, createdRoles['Vendor Admin']]);
+
+      // 5. Create additional users
+      const createdUsers = [pocUser];
+      for (const u of additional_users) {
+        if (!u.email?.trim()) continue;
+        const roleId = createdRoles[u.role] || createdRoles['Vendor Recruiter'];
+        const { rows: [newUser] } = await conn.query(
+          `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified)
+           VALUES ($1, $2, $3, $4, $5, true) RETURNING id, email, first_name, last_name`,
+          [org.id, u.email.toLowerCase(), passwordHash, u.first_name || '', u.last_name || '']
+        );
+        await conn.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [newUser.id, roleId]);
+        createdUsers.push(newUser);
+      }
+
+      return { org, pocUser, usersCreated: createdUsers.length };
+    });
 
     res.status(201).json({
-      organization: org,
-      poc_user: pocUser,
-      message: `Vendor onboarded. POC login: ${poc_email} / TempPass123!`
+      organization: result.org,
+      poc_user:     result.pocUser,
+      users_created: result.usersCreated,
+      message: `Vendor onboarded successfully. All users have password: Password123!`,
     });
   } catch (err) {
-    await client.query('ROLLBACK');
-    if (err.code === '23505') return res.status(409).json({ error: 'A vendor with this email already exists' });
+    if (err.code === '23505') return res.status(409).json({ error: 'A user with this email already exists' });
     res.status(500).json({ error: err.message });
-  } finally {
-    client.release();
   }
 });
 
