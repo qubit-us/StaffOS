@@ -4,13 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '../../store/authStore.js';
 import api from '../../lib/api.js';
 import {
-  LayoutDashboard, FileText, Users, LogOut, Zap, Bell,
+  LayoutDashboard, FileText, Users, LogOut, Zap, Bell, ShieldCheck,
 } from 'lucide-react';
 
 const navItems = [
-  { to: '/client',              icon: LayoutDashboard, label: 'Dashboard',    end: true },
-  { to: '/client/requirements', icon: FileText,        label: 'Requirements'            },
-  { to: '/client/submissions',  icon: Users,           label: 'Candidates'              },
+  { to: '/client',              icon: LayoutDashboard, label: 'Dashboard',    end: true               },
+  { to: '/client/requirements', icon: FileText,        label: 'Requirements'                          },
+  { to: '/client/submissions',  icon: Users,           label: 'Candidates'                            },
+  { to: '/client/admin',        icon: ShieldCheck,     label: 'Admin',        permission: 'MANAGE_USERS' },
 ];
 
 export default function ClientLayout() {
@@ -69,16 +70,23 @@ export default function ClientLayout() {
             Organization
           </p>
           <p className="text-sm font-bold text-white mt-0.5 truncate">{user?.orgName}</p>
-          {clientMe?.client_code && (
-            <span className="inline-block mt-1 font-mono text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-700/60 text-teal-200">
-              {clientMe.client_code}
-            </span>
-          )}
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
+            {clientMe?.client_code && (
+              <span className="font-mono text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-700/60 text-teal-200">
+                {clientMe.client_code}
+              </span>
+            )}
+            {user?.roles?.[0] && (
+              <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-teal-800/60 text-teal-300 capitalize">
+                {user.roles[0]}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ to, icon: Icon, label, end }) => (
+          {navItems.filter(item => !item.permission || user?.permissions?.includes(item.permission)).map(({ to, icon: Icon, label, end }) => (
             <NavLink
               key={to}
               to={to}

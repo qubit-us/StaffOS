@@ -4,6 +4,7 @@
 import { Router } from 'express';
 import { db } from '../config/database.js';
 import { authenticate, requirePermission, requireOrgType } from '../middleware/auth.js';
+import { logAudit } from '../utils/audit.js';
 
 const router = Router();
 router.use(authenticate);
@@ -46,6 +47,9 @@ router.patch('/users/:id', requirePermission('MANAGE_USERS'), async (req, res) =
       [is_active, req.params.id, req.orgId]
     );
     if (!rows.length) return res.status(404).json({ error: 'User not found' });
+    logAudit(req, is_active ? 'user.activated' : 'user.deactivated', 'user', req.params.id, {
+      email: rows[0].email, name: `${rows[0].first_name} ${rows[0].last_name}`,
+    });
     res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });

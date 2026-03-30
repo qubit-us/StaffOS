@@ -15,6 +15,8 @@ import clientPortalRoutes from './routes/clientPortal.js';
 import publicRoutes from './routes/public.js';
 import dashboardRoutes from './routes/dashboard.js';
 import adminRoutes from './routes/admin.js';
+import auditLogRoutes from './routes/auditLogs.js';
+import orgAdminRoutes from './routes/orgAdmin.js';
 import { mkdirSync } from 'fs';
 
 // Ensure upload dir exists
@@ -55,6 +57,8 @@ app.use('/api/client-portal', clientPortalRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
+app.use('/api/org-admin', orgAdminRoutes);
 
 // Health
 app.get('/health', (_, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }));

@@ -17,7 +17,9 @@ import ReportsPage from './pages/ReportsPage.jsx';
 import AdminLayout from './components/layout/AdminLayout.jsx';
 import AdminUsersPage from './pages/admin/AdminUsersPage.jsx';
 import AdminSettingsPage from './pages/admin/AdminSettingsPage.jsx';
+import AuditLogPage from './pages/admin/AuditLogPage.jsx';
 import VendorDashboardPage from './pages/VendorDashboardPage.jsx';
+import OrgAdminPage from './pages/OrgAdminPage.jsx';
 import ClientDashboardPage from './pages/client/ClientDashboardPage.jsx';
 import ClientRequirementsPage from './pages/client/ClientRequirementsPage.jsx';
 import ClientSubmissionsPage from './pages/client/ClientSubmissionsPage.jsx';
@@ -76,12 +78,14 @@ export default function App() {
           <Route path="pipeline" element={<PipelinePage />} />
           <Route path="upload" element={<UploadResumePage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="vendor-admin" element={<OrgAdminPage />} />
           <Route path="admin" element={<AdminLayout />}>
             <Route index element={<Navigate to="/admin/clients" replace />} />
             <Route path="clients" element={<AgencyClientsPage showOnboard />} />
             <Route path="vendors" element={<AgencyVendorsPage showOnboard />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="settings" element={<AdminSettingsPage />} />
+            <Route path="audit-log" element={<AuditLogPage />} />
           </Route>
         </Route>
 
@@ -98,6 +102,7 @@ export default function App() {
           <Route path="requirements" element={<ClientRequirementsPage />} />
           <Route path="submissions" element={<ClientSubmissionsPage />} />
           <Route path="submissions/:id" element={<ClientSubmissionDetailPage />} />
+          <Route path="admin" element={<OrgAdminPage />} />
         </Route>
 
         {/* Public job board — no auth required */}

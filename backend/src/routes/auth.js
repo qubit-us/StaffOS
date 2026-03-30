@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { logAudit } from '../utils/audit.js';
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -49,6 +50,11 @@ router.post('/login', async (req, res) => {
     );
 
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
+
+    // Audit: attach org/user to req manually since authenticate hasn't run
+    req.orgId = user.org_id;
+    req.user = { id: user.id };
+    logAudit(req, 'user.login', 'user', user.id, { email: user.email, method: 'password' });
 
     const token = jwt.sign(
       { userId: user.id, orgId: user.org_id },
@@ -157,6 +163,10 @@ router.post('/signup', async (req, res) => {
       return { user, org };
     });
 
+    req.orgId = result.org.id;
+    req.user = { id: result.user.id };
+    logAudit(req, 'org.signup', 'organization', result.org.id, { orgName: result.org.name, email: result.user.email });
+
     const { rows: perms } = await db.query(
       `SELECT DISTINCT p.code FROM user_roles ur
        JOIN role_permissions rp ON rp.role_id = ur.role_id
@@ -236,6 +246,10 @@ router.post('/google', async (req, res) => {
     } else {
       await db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [user.id]);
     }
+
+    req.orgId = user.org_id;
+    req.user = { id: user.id };
+    logAudit(req, 'user.login', 'user', user.id, { email: user.email, method: 'google' });
 
     // 4. Fetch permissions and roles
     const { rows: perms } = await db.query(

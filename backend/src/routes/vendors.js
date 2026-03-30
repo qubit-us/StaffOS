@@ -72,7 +72,7 @@ router.get('/:id', requirePermission('MANAGE_VENDORS'), async (req, res) => {
 router.post('/', requirePermission('MANAGE_VENDORS'), async (req, res) => {
   try {
     const {
-      name, phone, website, domain, industry, company_size,
+      name, phone, website, industry, company_size,
       specializations, placement_types, preferred_visas,
       contract_type, contract_start, contract_end, margin_cap, notes,
       account_manager_id,
@@ -89,10 +89,14 @@ router.post('/', requirePermission('MANAGE_VENDORS'), async (req, res) => {
     const result = await db.transaction(async (conn) => {
       // 1. Create the vendor organization
       const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') + '-' + Date.now();
+      let domain = null;
+      if (website) {
+        try { domain = new URL(website).hostname.replace(/^www\./, ''); } catch {}
+      }
       const { rows: [org] } = await conn.query(
         `INSERT INTO organizations (name, slug, org_type, domain, website, phone, industry, company_size)
          VALUES ($1, $2, 'vendor', $3, $4, $5, $6, $7) RETURNING *`,
-        [name, slug, domain || null, website || null, phone || null, industry || null, company_size || null]
+        [name, slug, domain, website || null, phone || null, industry || null, company_size || null]
       );
 
       // 2. Create the vendor relationship (extended fields stored in terms JSONB)
@@ -169,24 +173,75 @@ router.post('/', requirePermission('MANAGE_VENDORS'), async (req, res) => {
   }
 });
 
-// PATCH /api/vendors/:id
+// PATCH /api/vendors/:id — update vendor org + relationship
 router.patch('/:id', requirePermission('MANAGE_VENDORS'), async (req, res) => {
   try {
-    const { status, terms } = req.body;
-    const updates = {};
-    if (status !== undefined) updates.status = status;
-    if (terms !== undefined) updates.terms = JSON.stringify(terms);
+    const { name, phone, website, industry, company_size, is_active, status, terms } = req.body;
 
-    if (!Object.keys(updates).length) return res.status(400).json({ error: 'No fields to update' });
+    const orgUpdates = Object.fromEntries(
+      Object.entries({ name, phone, website, industry, company_size, is_active }).filter(([, v]) => v !== undefined)
+    );
+    const relUpdates = Object.fromEntries(
+      Object.entries({ status }).filter(([, v]) => v !== undefined)
+    );
+    if (terms !== undefined) relUpdates.terms = JSON.stringify(terms);
 
-    const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 3}`);
+    if (!Object.keys(orgUpdates).length && !Object.keys(relUpdates).length) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    await db.transaction(async (conn) => {
+      if (Object.keys(orgUpdates).length) {
+        const sets = Object.keys(orgUpdates).map((k, i) => `${k} = $${i + 2}`);
+        await conn.query(
+          `UPDATE organizations SET ${sets.join(', ')} WHERE id = $1`,
+          [req.params.id, ...Object.values(orgUpdates)]
+        );
+      }
+      if (Object.keys(relUpdates).length) {
+        const sets = Object.keys(relUpdates).map((k, i) => `${k} = $${i + 3}`);
+        const { rows } = await conn.query(
+          `UPDATE vendor_relationships SET ${sets.join(', ')}
+           WHERE vendor_org_id = $1 AND agency_org_id = $2 RETURNING id`,
+          [req.params.id, req.orgId, ...Object.values(relUpdates)]
+        );
+        if (!rows.length) throw Object.assign(new Error('Vendor not found'), { status: 404 });
+      }
+    });
+
     const { rows } = await db.query(
-      `UPDATE vendor_relationships SET ${sets.join(', ')}
-       WHERE vendor_org_id = $1 AND agency_org_id = $2 RETURNING *`,
-      [req.params.id, req.orgId, ...Object.values(updates)]
+      `SELECT o.id, o.name, o.website, o.phone, o.industry, o.company_size,
+              vr.status as relationship_status, vr.terms
+       FROM organizations o
+       JOIN vendor_relationships vr ON vr.vendor_org_id = o.id
+       WHERE o.id = $1 AND vr.agency_org_id = $2`,
+      [req.params.id, req.orgId]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/vendors/:id — remove vendor from agency (soft-deactivates org)
+router.delete('/:id', requirePermission('MANAGE_VENDORS'), async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT 1 FROM vendor_relationships WHERE vendor_org_id = $1 AND agency_org_id = $2`,
+      [req.params.id, req.orgId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Vendor not found' });
-    res.json(rows[0]);
+
+    await db.transaction(async (conn) => {
+      await conn.query(`UPDATE organizations SET is_active = false WHERE id = $1`, [req.params.id]);
+      await conn.query(
+        `DELETE FROM vendor_relationships WHERE vendor_org_id = $1 AND agency_org_id = $2`,
+        [req.params.id, req.orgId]
+      );
+    });
+
+    res.json({ message: 'Vendor removed successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

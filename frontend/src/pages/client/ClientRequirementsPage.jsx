@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
 import {
-  Plus, Search, MapPin, Briefcase, Calendar, Users,
-  Clock, ChevronRight, Loader2, X, DollarSign, FileText
+  Plus, Search, MapPin, ChevronRight, Loader2, X, FileText,
+  MoreVertical, Pencil, XCircle,
 } from 'lucide-react';
 
 const statusColors = {
@@ -213,10 +213,216 @@ function NewRequirementModal({ onClose, agencyOrgId }) {
   );
 }
 
+function EditRequirementModal({ requirement, onClose }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    title: requirement.title || '',
+    description: requirement.description || '',
+    location_city: requirement.location_city || '',
+    location_state: requirement.location_state || '',
+    remote_allowed: requirement.remote_allowed || false,
+    client_bill_rate: requirement.client_bill_rate || '',
+    positions_count: requirement.positions_count || 1,
+    start_date: requirement.start_date ? requirement.start_date.split('T')[0] : '',
+    client_poc: requirement.client_poc || '',
+    is_carry_forward: requirement.is_carry_forward || false,
+    experience_min: requirement.experience_min || '',
+    experience_max: requirement.experience_max || '',
+    deadline: requirement.deadline ? requirement.deadline.split('T')[0] : '',
+    job_type: requirement.job_type || 'contract',
+    rate_type: requirement.rate_type || 'hourly',
+    required_skills: Array.isArray(requirement.required_skills)
+      ? requirement.required_skills.join(', ')
+      : requirement.required_skills || '',
+    visa_requirements: requirement.visa_requirements || [],
+  });
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (data) => api.patch(`/api/client-portal/requirements/${requirement.id}`, data).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Requirement updated');
+      qc.invalidateQueries({ queryKey: ['client-requirements'] });
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to update requirement'),
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    mutate({
+      ...form,
+      client_bill_rate: form.client_bill_rate ? parseFloat(form.client_bill_rate) : undefined,
+      experience_min: form.experience_min ? parseFloat(form.experience_min) : undefined,
+      experience_max: form.experience_max ? parseFloat(form.experience_max) : undefined,
+      positions_count: parseInt(form.positions_count) || 1,
+      required_skills: form.required_skills.split(',').map(s => s.trim()).filter(Boolean),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-surface-200">
+          <h2 className="text-lg font-bold text-slate-900">Edit Requirement</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-100 transition-colors">
+            <X size={18} className="text-slate-500" />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <div>
+            <label className="label">Job Title *</label>
+            <input className="input" required value={form.title} onChange={e => set('title', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Description</label>
+            <textarea className="input min-h-[80px] resize-none" value={form.description}
+              onChange={e => set('description', e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">City</label>
+              <input className="input" value={form.location_city} onChange={e => set('location_city', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">State</label>
+              <input className="input" value={form.location_state} onChange={e => set('location_state', e.target.value)} />
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="label">Bill Rate ($/hr)</label>
+              <input className="input" type="number" step="0.01" value={form.client_bill_rate}
+                onChange={e => set('client_bill_rate', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Positions</label>
+              <input className="input" type="number" min="1" value={form.positions_count}
+                onChange={e => set('positions_count', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Job Type</label>
+              <select className="input" value={form.job_type} onChange={e => set('job_type', e.target.value)}>
+                <option value="contract">Contract</option>
+                <option value="full_time">Full Time (FTE)</option>
+                <option value="part_time">Part Time</option>
+                <option value="internship">Internship</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="label">Exp Min (yrs)</label>
+              <input className="input" type="number" step="0.5" value={form.experience_min}
+                onChange={e => set('experience_min', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Exp Max (yrs)</label>
+              <input className="input" type="number" step="0.5" value={form.experience_max}
+                onChange={e => set('experience_max', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Start Date</label>
+              <input className="input" type="date" value={form.start_date}
+                onChange={e => set('start_date', e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Required Skills (comma-separated)</label>
+            <input className="input" value={form.required_skills}
+              onChange={e => set('required_skills', e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Visa Requirements</label>
+            <div className="flex flex-wrap gap-2 mt-1">
+              {visaOptions.map(v => (
+                <button key={v} type="button"
+                  onClick={() => set('visa_requirements',
+                    form.visa_requirements.includes(v)
+                      ? form.visa_requirements.filter(x => x !== v)
+                      : [...form.visa_requirements, v]
+                  )}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    form.visa_requirements.includes(v)
+                      ? 'bg-brand-600 text-white border-brand-600'
+                      : 'border-surface-300 text-slate-600 hover:border-brand-400'
+                  }`}
+                >
+                  {v.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Client POC</label>
+              <input className="input" value={form.client_poc} onChange={e => set('client_poc', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Deadline</label>
+              <input className="input" type="date" value={form.deadline}
+                onChange={e => set('deadline', e.target.value)} />
+            </div>
+          </div>
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="rounded" checked={form.remote_allowed}
+                onChange={e => set('remote_allowed', e.target.checked)} />
+              <span className="text-sm text-slate-700">Remote OK</span>
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="rounded" checked={form.is_carry_forward}
+                onChange={e => set('is_carry_forward', e.target.checked)} />
+              <span className="text-sm text-slate-700">Carry Forward</span>
+            </label>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 btn-secondary">Cancel</button>
+            <button type="submit" disabled={isPending}
+              className="flex-1 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+              {isPending ? <Loader2 size={16} className="animate-spin" /> : null}
+              {isPending ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function ClientRequirementsPage() {
+  const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [editReq, setEditReq] = useState(null);
+  const [menuOpenId, setMenuOpenId] = useState(null);
+  const [confirmCloseId, setConfirmCloseId] = useState(null);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpenId(null);
+        setConfirmCloseId(null);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const { mutate: closeReq, isPending: isClosing } = useMutation({
+    mutationFn: (id) => api.patch(`/api/client-portal/requirements/${id}/close`).then(r => r.data),
+    onSuccess: () => {
+      toast.success('Requirement closed');
+      qc.invalidateQueries({ queryKey: ['client-requirements'] });
+      qc.invalidateQueries({ queryKey: ['client-dashboard'] });
+      setMenuOpenId(null);
+      setConfirmCloseId(null);
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to close requirement'),
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ['client-requirements', search, statusFilter],
@@ -276,7 +482,7 @@ export default function ClientRequirementsPage() {
             <p className="text-slate-400 text-sm mt-1">Click "New Requirement" to submit your first job requirement.</p>
           </div>
         ) : (
-          <table className="w-full">
+          <table className="w-full" ref={menuRef}>
             <thead className="bg-surface-50 border-b border-surface-200">
               <tr>
                 {['Title', 'Status', 'Location', 'Type', 'Bill Rate', 'Positions', 'Start Date', 'Pending', 'Approved', ''].map(h => (
@@ -330,10 +536,63 @@ export default function ClientRequirementsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <Link to={`/client/submissions?job_id=${req.id}`}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-brand-600 font-medium">
-                      View <ChevronRight size={13} />
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link to={`/client/submissions?job_id=${req.id}`}
+                        className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1 text-xs text-brand-600 font-medium">
+                        View <ChevronRight size={13} />
+                      </Link>
+                      {!['closed','filled'].includes(req.status) && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMenuOpenId(menuOpenId === req.id ? null : req.id);
+                              setConfirmCloseId(null);
+                            }}
+                            className="p-1 rounded-lg hover:bg-surface-100 text-slate-400 hover:text-slate-600 transition-colors"
+                          >
+                            <MoreVertical size={14} />
+                          </button>
+                          {menuOpenId === req.id && (
+                            <div className="absolute right-0 top-7 w-44 bg-white rounded-xl shadow-lg border border-surface-200 z-20 py-1">
+                              {confirmCloseId === req.id ? (
+                                <div className="p-3">
+                                  <p className="text-xs font-semibold text-slate-700 mb-1">Close this requirement?</p>
+                                  <p className="text-xs text-slate-400 mb-3">No new candidates will be accepted.</p>
+                                  <div className="flex gap-2">
+                                    <button type="button"
+                                      onClick={() => { setConfirmCloseId(null); setMenuOpenId(null); }}
+                                      className="flex-1 text-xs py-1.5 rounded-lg border border-surface-200 text-slate-600 font-semibold hover:bg-surface-50 transition-colors">
+                                      Cancel
+                                    </button>
+                                    <button type="button"
+                                      onClick={() => closeReq(req.id)}
+                                      disabled={isClosing}
+                                      className="flex-1 text-xs py-1.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-semibold transition-colors">
+                                      {isClosing ? '...' : 'Close'}
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <button type="button"
+                                    onClick={() => { setEditReq(req); setMenuOpenId(null); }}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-surface-50 transition-colors">
+                                    <Pencil size={13} className="text-slate-400" /> Edit
+                                  </button>
+                                  <button type="button"
+                                    onClick={() => setConfirmCloseId(req.id)}
+                                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                                    <XCircle size={13} /> Close Requirement
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -346,6 +605,12 @@ export default function ClientRequirementsPage() {
         <NewRequirementModal
           onClose={() => setShowModal(false)}
           agencyOrgId={clientMe?.agency_org_id}
+        />
+      )}
+      {editReq && (
+        <EditRequirementModal
+          requirement={editReq}
+          onClose={() => setEditReq(null)}
         />
       )}
     </div>

@@ -15,11 +15,12 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      // Don't auto-redirect for auth endpoints — a 401 there means wrong
-      // credentials, not an expired session, so let the form handle it.
       const url = err.config?.url || '';
       const isAuthEndpoint = ['/api/auth/login', '/api/auth/signup', '/api/auth/google'].includes(url);
-      if (!isAuthEndpoint) {
+      // Only wipe session if the token itself is invalid/expired (auth/me fails),
+      // not for permission-denied on background data queries.
+      const isSessionCheck = url.includes('/api/auth/me');
+      if (!isAuthEndpoint && isSessionCheck) {
         localStorage.removeItem('staffos_token');
         localStorage.removeItem('staffos_user');
         window.location.href = '/login';

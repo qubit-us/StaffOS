@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../config/database.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
+import { logAudit } from '../utils/audit.js';
 
 const router = Router();
 router.use(authenticate);
@@ -116,6 +117,9 @@ router.post('/', requirePermission('SUBMIT_CANDIDATE'), async (req, res) => {
       ]
     );
 
+    logAudit(req, 'submission.created', 'submission', submission.id, {
+      job_id, candidate_id, source: submission_source,
+    });
     res.status(201).json(submission);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -149,6 +153,9 @@ router.patch('/:id/internal-stage', requirePermission('SCREEN_CANDIDATE'), async
       [internal_stage, notes || null, req.user.id, current.id]
     );
 
+    logAudit(req, 'submission.internal_stage_changed', 'submission', current.id, {
+      from_stage: current.internal_stage, to_stage: internal_stage,
+    });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -188,6 +195,9 @@ router.patch('/:id/stage', requirePermission('MANAGE_PIPELINE'), async (req, res
       [stage, notes || null, current.id]
     );
 
+    logAudit(req, 'submission.stage_changed', 'submission', current.id, {
+      from_stage: current.stage, to_stage: stage, job_id: current.job_id,
+    });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -204,6 +214,7 @@ router.patch('/:id/rates', requirePermission('MANAGE_RATES'), async (req, res) =
       [agency_pay_rate, vendor_pay_rate, req.params.id, req.orgId]
     );
     if (!updated) return res.status(404).json({ error: 'Submission not found' });
+    logAudit(req, 'submission.rates_updated', 'submission', req.params.id, { agency_pay_rate, vendor_pay_rate });
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -219,6 +230,7 @@ router.post('/:id/unlock', requirePermission('UNLOCK_CANDIDATE'), async (req, re
       [req.user.id, req.params.id, req.orgId]
     );
     if (!updated) return res.status(404).json({ error: 'Submission not found' });
+    logAudit(req, 'submission.profile_unlocked', 'submission', req.params.id, { job_id: updated.job_id });
     res.json({ message: 'Profile unlocked', submission: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });

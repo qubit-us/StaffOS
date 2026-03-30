@@ -282,6 +282,61 @@ router.get('/submissions/:id', requirePermission('VIEW_SUBMISSIONS'), async (req
   }
 });
 
+// PATCH /api/client-portal/requirements/:id — edit requirement
+router.patch('/requirements/:id', requirePermission('EDIT_REQUIREMENT'), async (req, res) => {
+  try {
+    const { rows: [job] } = await db.query(
+      `SELECT id, status FROM jobs WHERE id = $1 AND client_org_id = $2`,
+      [req.params.id, req.orgId]
+    );
+    if (!job) return res.status(404).json({ error: 'Requirement not found' });
+    if (['closed', 'filled'].includes(job.status)) {
+      return res.status(400).json({ error: 'Cannot edit a closed or filled requirement' });
+    }
+
+    const allowed = [
+      'title', 'description', 'required_skills', 'nice_to_have_skills',
+      'experience_min', 'experience_max', 'location_city', 'location_state',
+      'location_country', 'remote_allowed', 'visa_requirements',
+      'client_bill_rate', 'positions_count', 'start_date', 'client_poc',
+      'is_carry_forward', 'rate_type', 'job_type', 'deadline',
+    ];
+    const updates = Object.fromEntries(
+      allowed.map(k => [k, req.body[k]]).filter(([, v]) => v !== undefined)
+    );
+    if (!Object.keys(updates).length) return res.status(400).json({ error: 'No fields to update' });
+
+    const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
+    const { rows } = await db.query(
+      `UPDATE jobs SET ${sets.join(', ')} WHERE id = $1 RETURNING *`,
+      [req.params.id, ...Object.values(updates)]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/client-portal/requirements/:id/close — close a requirement
+router.patch('/requirements/:id/close', requirePermission('EDIT_REQUIREMENT'), async (req, res) => {
+  try {
+    const { rows: [job] } = await db.query(
+      `SELECT id, status FROM jobs WHERE id = $1 AND client_org_id = $2`,
+      [req.params.id, req.orgId]
+    );
+    if (!job) return res.status(404).json({ error: 'Requirement not found' });
+    if (job.status === 'closed') return res.status(400).json({ error: 'Already closed' });
+
+    const { rows } = await db.query(
+      `UPDATE jobs SET status = 'closed' WHERE id = $1 RETURNING id, title, status`,
+      [req.params.id]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // PATCH /api/client-portal/submissions/:id/review — approve/reject/request interview
 router.patch('/submissions/:id/review', requirePermission('APPROVE_CANDIDATE'), async (req, res) => {
   try {

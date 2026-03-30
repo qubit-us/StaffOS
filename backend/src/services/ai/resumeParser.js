@@ -1,11 +1,15 @@
 import fs from 'fs/promises';
 import path from 'path';
-import axios from 'axios';
+import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../utils/logger.js';
 
-// OpenRouter — used for all parsing
-const OPENROUTER_BASE = 'https://openrouter.ai/api/v1';
-const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'google/gemini-flash-1.5';
+let _anthropic = null;
+function getClient() {
+  if (!_anthropic && process.env.ANTHROPIC_API_KEY) {
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return _anthropic;
+}
 
 async function extractText(filePath) {
   const ext = path.extname(filePath).toLowerCase();
@@ -84,34 +88,20 @@ Industry inference rules:
 
 Resume text:`;
 
-async function parseWithOpenRouter(text) {
-  const res = await axios.post(
-    `${OPENROUTER_BASE}/chat/completions`,
-    {
-      model: OPENROUTER_MODEL,
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: `${PARSE_PROMPT}\n\n${text.slice(0, 12000)}` }],
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://staffos.app',
-        'X-Title': 'StaffOS Resume Parser',
-      },
-      timeout: 60000,
-    }
-  );
+async function parseWithClaude(text) {
+  const client = getClient();
+  if (!client) throw new Error('Anthropic API key not configured');
 
-  const choice = res.data.choices?.[0];
-  const content = choice?.message?.content;
+  const response = await client.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 4096,
+    messages: [{ role: 'user', content: `${PARSE_PROMPT}\n\n${text.slice(0, 12000)}` }],
+  });
 
-  if (!content) {
-    const reason = choice?.finish_reason || 'unknown';
-    throw new Error(`Model returned no content (finish_reason: ${reason}). The free model may be overloaded — please try again.`);
-  }
+  const content = response.content[0]?.text;
+  if (!content) throw new Error('Claude returned no content');
 
-  // Strip markdown code fences if the model wrapped the JSON
+  // Strip markdown code fences if present
   return content.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
 }
 
@@ -134,8 +124,8 @@ export const resumeParser = {
 
     const extracted = await extractText(filePath);
 
-    logger.info(`Parsing text via OpenRouter (${OPENROUTER_MODEL})`);
-    const content = await parseWithOpenRouter(extracted.text);
+    logger.info('Parsing text via Claude Haiku');
+    const content = await parseWithClaude(extracted.text);
 
     const parsed = safeParseJSON(content);
     parsed.rawText = extracted.text || '';

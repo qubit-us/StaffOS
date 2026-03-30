@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
-import { Plus, Briefcase, MapPin, DollarSign, Users, Sparkles, Search, Loader2, X, ChevronUp, ChevronDown, ChevronsUpDown, Wifi } from 'lucide-react';
+import { Plus, Briefcase, MapPin, DollarSign, Users, Sparkles, Search, Loader2, X, ChevronUp, ChevronDown, ChevronsUpDown, Wifi, Wand2 } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { clsx } from 'clsx';
 
@@ -36,15 +36,15 @@ const jobTypeLabels = {
 };
 
 const visaLabels = {
-  citizen: 'Citizen', green_card: 'Green Card', h1b: 'H1B', h4_ead: 'H4 EAD',
-  opt: 'OPT', stem_opt: 'STEM OPT', l1: 'L1', tn: 'TN',
+  citizen: 'USC', green_card: 'GC', h1b: 'H1B', h4_ead: 'H4 EAD',
+  opt: 'OPT', stem_opt: 'STEM OPT', l1: 'L2 EAD', tn: 'TN',
 };
 
 const VISA_OPTIONS = [
-  { value: 'citizen', label: 'US Citizen' }, { value: 'green_card', label: 'Green Card' },
+  { value: 'citizen', label: 'USC' }, { value: 'green_card', label: 'GC' },
   { value: 'h1b', label: 'H1B' }, { value: 'h4_ead', label: 'H4 EAD' },
   { value: 'opt', label: 'OPT' }, { value: 'stem_opt', label: 'STEM OPT' },
-  { value: 'l1', label: 'L1' }, { value: 'tn', label: 'TN' },
+  { value: 'l1', label: 'L2 EAD' }, { value: 'tn', label: 'TN' },
 ];
 
 const JOB_TYPES = [
@@ -97,19 +97,60 @@ function VisaCheckboxes({ selected, onChange }) {
 
 function NewJobModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
-    title: '', description: '', required_skills: '',
+    title: '', description: '', required_skills: '', nice_to_have_skills: '',
     experience_min: '', pay_rate_min: '', pay_rate_max: '',
     client_bill_rate: '',
     location_city: '', location_state: '', remote_allowed: false,
     is_public: false, job_type: 'contract', visa_requirements: [],
     client_org_id: '',
+    clearance_level: 'none', clearance_status: 'not_required', polygraph: 'none',
+    education_requirement: 'none', travel_requirement: 'none', positions_count: 1,
   });
   const [saving, setSaving] = useState(false);
+  const [showAssist, setShowAssist] = useState(false);
+  const [rawText, setRawText] = useState('');
+  const [parsing, setParsing] = useState(false);
 
   const { data: clientsData } = useQuery({
     queryKey: ['clients-dropdown'],
     queryFn: () => api.get('/api/clients?limit=100').then(r => r.data),
   });
+
+  const handleParse = async () => {
+    if (!rawText.trim()) return;
+    setParsing(true);
+    try {
+      const { data } = await api.post('/api/jobs/parse-jd', { text: rawText });
+      setForm(f => ({
+        ...f,
+        title:               data.title                              || f.title,
+        description:         data.description                        || f.description,
+        required_skills:     data.required_skills?.join(', ')        || f.required_skills,
+        nice_to_have_skills: data.nice_to_have_skills?.join(', ')    || f.nice_to_have_skills,
+        experience_min:      data.experience_min      ?? f.experience_min,
+        experience_max:      data.experience_max      ?? f.experience_max,
+        pay_rate_min:        data.pay_rate_min        ?? f.pay_rate_min,
+        pay_rate_max:        data.pay_rate_max        ?? f.pay_rate_max,
+        job_type:            data.job_type             || f.job_type,
+        location_city:       data.location_city        || f.location_city,
+        location_state:      data.location_state       || f.location_state,
+        remote_allowed:        data.remote_allowed        ?? f.remote_allowed,
+        visa_requirements:     data.visa_requirements?.length ? data.visa_requirements : f.visa_requirements,
+        clearance_level:       data.clearance_level        || f.clearance_level,
+        clearance_status:      data.clearance_status       || f.clearance_status,
+        polygraph:             data.polygraph              || f.polygraph,
+        education_requirement: data.education_requirement  || f.education_requirement,
+        travel_requirement:    data.travel_requirement     || f.travel_requirement,
+      }));
+      toast.success('Fields pre-filled from job description');
+      setShowAssist(false);
+      setRawText('');
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to parse description');
+    } finally {
+      setParsing(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -117,7 +158,8 @@ function NewJobModal({ onClose, onCreated }) {
     try {
       const payload = {
         ...form,
-        required_skills: form.required_skills.split(',').map(s => s.trim()).filter(Boolean),
+        required_skills:     form.required_skills.split(',').map(s => s.trim()).filter(Boolean),
+        nice_to_have_skills: form.nice_to_have_skills.split(',').map(s => s.trim()).filter(Boolean),
         experience_min:   form.experience_min   ? parseFloat(form.experience_min)   : null,
         pay_rate_min:     form.pay_rate_min     ? parseFloat(form.pay_rate_min)     : null,
         pay_rate_max:     form.pay_rate_max     ? parseFloat(form.pay_rate_max)     : null,
@@ -145,6 +187,39 @@ function NewJobModal({ onClose, onCreated }) {
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 text-slate-400"><X size={18} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* AI Assist */}
+          {showAssist ? (
+            <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-brand-700 flex items-center gap-1.5"><Wand2 size={14} /> AI Assist</p>
+                <button type="button" onClick={() => { setShowAssist(false); setRawText(''); }} className="text-brand-400 hover:text-brand-700"><X size={15} /></button>
+              </div>
+              <p className="text-xs text-brand-600">Paste a raw job description below — Claude will extract and fill the fields for you.</p>
+              <textarea
+                className="input min-h-[120px] resize-none text-sm"
+                placeholder="Paste job description here..."
+                value={rawText}
+                onChange={e => setRawText(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={handleParse}
+                disabled={parsing || !rawText.trim()}
+                className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
+              >
+                {parsing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                {parsing ? 'Analyzing...' : 'Parse & Fill Fields'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowAssist(true)}
+              className="w-full flex items-center justify-center gap-2 border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 text-sm font-semibold py-2.5 rounded-xl transition-colors"
+            >
+              <Wand2 size={14} /> AI Assist — paste a job description to auto-fill
+            </button>
+          )}
           <div>
             <label className="label">Job Title *</label>
             <input className="input" placeholder="e.g. Senior React Developer" value={form.title} onChange={set('title')} required />
@@ -191,6 +266,68 @@ function NewJobModal({ onClose, onCreated }) {
             <label className="label">Visa / Work Authorization</label>
             <p className="text-xs text-slate-400 mb-2">Select all that are acceptable</p>
             <VisaCheckboxes selected={form.visa_requirements} onChange={vals => setForm(f => ({ ...f, visa_requirements: vals }))} />
+          </div>
+          {/* Security Clearance */}
+          <div className="border-t border-surface-100 pt-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Security & Compliance</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Clearance Level</label>
+                <select className="input" value={form.clearance_level} onChange={set('clearance_level')}>
+                  <option value="none">None</option>
+                  <option value="public_trust">Public Trust</option>
+                  <option value="secret">Secret</option>
+                  <option value="top_secret">Top Secret</option>
+                  <option value="ts_sci">TS/SCI</option>
+                  <option value="ts_sci_poly">TS/SCI + Poly</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Clearance Status</label>
+                <select className="input" value={form.clearance_status} onChange={set('clearance_status')}>
+                  <option value="not_required">Not Required</option>
+                  <option value="must_have_active">Must Have Active</option>
+                  <option value="must_be_clearable">Must Be Clearable</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mt-3">
+              <div>
+                <label className="label">Polygraph</label>
+                <select className="input" value={form.polygraph} onChange={set('polygraph')}>
+                  <option value="none">None</option>
+                  <option value="ci_poly">CI Polygraph</option>
+                  <option value="full_scope_poly">Full Scope Poly</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Education</label>
+                <select className="input" value={form.education_requirement} onChange={set('education_requirement')}>
+                  <option value="none">No Requirement</option>
+                  <option value="high_school">High School</option>
+                  <option value="associates">Associate's</option>
+                  <option value="bachelors">Bachelor's</option>
+                  <option value="masters">Master's</option>
+                  <option value="phd">PhD</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Travel</label>
+                <select className="input" value={form.travel_requirement} onChange={set('travel_requirement')}>
+                  <option value="none">No Travel</option>
+                  <option value="minimal">Minimal (&lt;10%)</option>
+                  <option value="up_to_25">Up to 25%</option>
+                  <option value="up_to_50">Up to 50%</option>
+                  <option value="up_to_100">Up to 100%</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Number of Openings</label>
+              <input className="input" type="number" min="1" value={form.positions_count} onChange={set('positions_count')} />
+            </div>
           </div>
           <label className="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" checked={form.remote_allowed} onChange={set('remote_allowed')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />

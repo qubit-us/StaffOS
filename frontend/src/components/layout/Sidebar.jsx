@@ -43,10 +43,11 @@ const ROLE_CONFIG = {
     tagline:    'Vendor Portal',
     userAvatar: 'from-violet-500 to-violet-700',
     navItems: [
-      { to: '/',           icon: LayoutDashboard, label: 'Dashboard',      end: true },
-      { to: '/candidates', icon: Users,           label: 'My Candidates'            },
-      { to: '/pipeline',   icon: GitPullRequest,  label: 'My Submissions'           },
-      { to: '/upload',     icon: Upload,          label: 'Upload Resume'            },
+      { to: '/',              icon: LayoutDashboard, label: 'Dashboard',      end: true                  },
+      { to: '/candidates',    icon: Users,           label: 'My Candidates'                              },
+      { to: '/pipeline',      icon: GitPullRequest,  label: 'My Submissions'                             },
+      { to: '/upload',        icon: Upload,          label: 'Upload Resume'                              },
+      { to: '/vendor-admin',  icon: ShieldCheck,     label: 'Admin',          permission: 'MANAGE_USERS' },
     ],
   },
 

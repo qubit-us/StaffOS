@@ -100,7 +100,7 @@ export default function MatchesPage() {
 
   const { data: jobsData } = useQuery({
     queryKey: ['jobs-list'],
-    queryFn: () => api.get('/api/jobs?status=open&limit=50').then(r => r.data),
+    queryFn: () => api.get('/api/jobs?limit=50').then(r => r.data),
   });
 
   const { data: matches, isLoading } = useQuery({
@@ -109,7 +109,7 @@ export default function MatchesPage() {
     enabled: !!selectedJobId,
   });
 
-  const jobs = jobsData?.jobs || [];
+  const jobs = (jobsData?.jobs || []).filter(j => !['closed', 'draft'].includes(j.status));
 
   return (
     <div className="space-y-6 animate-slide-up">

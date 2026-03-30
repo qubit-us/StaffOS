@@ -2,7 +2,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { db } from '../../config/database.js';
 import { logger } from '../../utils/logger.js';
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+let _anthropic = null;
+function getAnthropicClient() {
+  if (!_anthropic && process.env.ANTHROPIC_API_KEY) {
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return _anthropic;
+}
 
 function skillOverlap(jobSkills = [], candidateSkills = []) {
   if (!jobSkills.length) return 0.5;
@@ -48,6 +54,8 @@ function locationScore(job, candidate) {
 }
 
 async function getAIExplanation(job, candidate, scores) {
+  const client = getAnthropicClient();
+  if (!client) return null;
   try {
     const response = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',

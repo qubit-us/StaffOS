@@ -2,12 +2,148 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
+import { useAuthStore } from '../store/authStore.js';
 import {
   ArrowLeft, MapPin, DollarSign, Star, Mail, Phone, Linkedin,
   Briefcase, GraduationCap, Award, Globe, Calendar, RefreshCw,
-  CheckCircle, AlertCircle, Loader2, Building2, ChevronRight,
+  CheckCircle, AlertCircle, Loader2, Building2, ChevronRight, Edit2, X, Save,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+
+const VISA_OPTIONS = [
+  { value: 'citizen', label: 'USC' }, { value: 'green_card', label: 'GC' },
+  { value: 'h1b', label: 'H1B' }, { value: 'h4_ead', label: 'H4 EAD' },
+  { value: 'opt', label: 'OPT' }, { value: 'stem_opt', label: 'STEM OPT' },
+  { value: 'l1', label: 'L2 EAD' }, { value: 'tn', label: 'TN' },
+  { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Unknown' },
+];
+
+function EditCandidateModal({ candidate, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    first_name:           candidate.first_name || '',
+    last_name:            candidate.last_name || '',
+    email:                candidate.email || '',
+    phone:                candidate.phone || '',
+    linkedin_url:         candidate.linkedin_url || '',
+    title:                candidate.title || '',
+    summary:              candidate.summary || '',
+    skills:               (candidate.skills || []).join(', '),
+    years_of_experience:  candidate.years_of_experience || '',
+    location_city:        candidate.location_city || '',
+    location_state:       candidate.location_state || '',
+    visa_status:          candidate.visa_status || 'unknown',
+    relocation_preference: candidate.relocation_preference || 'open',
+    remote_preference:    candidate.remote_preference || '',
+    expected_rate_min:    candidate.expected_rate_min || '',
+    expected_rate_max:    candidate.expected_rate_max || '',
+    availability_date:    candidate.availability_date ? candidate.availability_date.split('T')[0] : '',
+    industry_experience:  (candidate.industry_experience || []).join(', '),
+  });
+  const [saving, setSaving] = useState(false);
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const { data } = await api.patch(`/api/candidates/${candidate.id}`, {
+        ...form,
+        skills:              form.skills.split(',').map(s => s.trim()).filter(Boolean),
+        industry_experience: form.industry_experience.split(',').map(s => s.trim()).filter(Boolean),
+        years_of_experience: form.years_of_experience ? parseFloat(form.years_of_experience) : null,
+        expected_rate_min:   form.expected_rate_min ? parseFloat(form.expected_rate_min) : null,
+        expected_rate_max:   form.expected_rate_max ? parseFloat(form.expected_rate_max) : null,
+        availability_date:   form.availability_date || null,
+      });
+      onSaved(data);
+      onClose();
+    } catch (err) {
+      import('react-hot-toast').then(({ default: toast }) =>
+        toast.error(err.response?.data?.error || 'Failed to update candidate')
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-5 border-b border-surface-100 flex items-center justify-between sticky top-0 bg-white z-10">
+          <h2 className="text-lg font-bold text-slate-900">Edit Candidate Profile</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 text-slate-400"><X size={18} /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">First Name</label><input className="input" value={form.first_name} onChange={set('first_name')} /></div>
+            <div><label className="label">Last Name</label><input className="input" value={form.last_name} onChange={set('last_name')} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Email</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
+            <div><label className="label">Phone</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
+          </div>
+          <div><label className="label">LinkedIn URL</label><input className="input" value={form.linkedin_url} onChange={set('linkedin_url')} /></div>
+          <div><label className="label">Current Title</label><input className="input" value={form.title} onChange={set('title')} /></div>
+          <div><label className="label">Professional Summary</label><textarea className="input min-h-[80px] resize-none" value={form.summary} onChange={set('summary')} /></div>
+          <div><label className="label">Skills (comma-separated)</label><input className="input" value={form.skills} onChange={set('skills')} /></div>
+          <div><label className="label">Industries (comma-separated)</label><input className="input" value={form.industry_experience} onChange={set('industry_experience')} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">Years of Experience</label><input className="input" type="number" step="0.5" value={form.years_of_experience} onChange={set('years_of_experience')} /></div>
+            <div>
+              <label className="label">Visa / Work Auth</label>
+              <select className="input" value={form.visa_status} onChange={set('visa_status')}>
+                {VISA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="label">City</label><input className="input" value={form.location_city} onChange={set('location_city')} /></div>
+            <div><label className="label">State</label><input className="input" value={form.location_state} onChange={set('location_state')} /></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Minimum Rate ($/hr)</label>
+              <p className="text-xs text-slate-400 mb-1">Won't accept below this</p>
+              <input className="input" type="number" value={form.expected_rate_min} onChange={set('expected_rate_min')} />
+            </div>
+            <div>
+              <label className="label">Target Rate ($/hr)</label>
+              <p className="text-xs text-slate-400 mb-1">Ideal ask / negotiation ceiling</p>
+              <input className="input" type="number" value={form.expected_rate_max} onChange={set('expected_rate_max')} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Relocation</label>
+              <select className="input" value={form.relocation_preference} onChange={set('relocation_preference')}>
+                <option value="willing">Willing to Relocate</option>
+                <option value="not_willing">Not Willing</option>
+                <option value="open">Open</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Remote Preference</label>
+              <select className="input" value={form.remote_preference} onChange={set('remote_preference')}>
+                <option value="">No Preference</option>
+                <option value="remote_only">Remote Only</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="onsite">On-site</option>
+              </select>
+            </div>
+          </div>
+          <div><label className="label">Availability Date</label><input className="input" type="date" value={form.availability_date} onChange={set('availability_date')} /></div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
+            <button type="submit" disabled={saving} className="btn-primary flex-1">
+              {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 
 const visaColors = {
   citizen:    'bg-emerald-100 text-emerald-700',
@@ -78,6 +214,10 @@ export default function CandidateDetailPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [enrichMsg, setEnrichMsg] = useState(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showPasteLinkedIn, setShowPasteLinkedIn] = useState(false);
+  const [linkedInText, setLinkedInText] = useState('');
+  const { user } = useAuthStore();
 
   const { data: candidate, isLoading } = useQuery({
     queryKey: ['candidate', id],
@@ -101,6 +241,26 @@ export default function CandidateDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['candidate', id] });
       setEnrichMsg({ type: 'success', text: 'Profile enriched from LinkedIn' });
+      setTimeout(() => setEnrichMsg(null), 4000);
+    },
+    onError: (err) => {
+      const msg = err.response?.data?.error || '';
+      if (msg.includes('PROXYCURL_API_KEY')) {
+        setShowPasteLinkedIn(true);
+      } else {
+        setEnrichMsg({ type: 'error', text: msg || 'Enrichment failed' });
+        setTimeout(() => setEnrichMsg(null), 5000);
+      }
+    },
+  });
+
+  const pasteEnrichMutation = useMutation({
+    mutationFn: () => api.post(`/api/candidates/${id}/enrich-from-text`, { text: linkedInText }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['candidate', id] });
+      setShowPasteLinkedIn(false);
+      setLinkedInText('');
+      setEnrichMsg({ type: 'success', text: 'Profile enriched from LinkedIn text' });
       setTimeout(() => setEnrichMsg(null), 4000);
     },
     onError: (err) => {
@@ -166,6 +326,11 @@ export default function CandidateDetailPage() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
+                {(candidate.submitted_by_user_id === user?.id || ['admin','agency_admin','super_admin'].includes(user?.role)) && (
+                  <button onClick={() => setShowEdit(true)} className="btn-secondary text-sm flex items-center gap-1.5">
+                    <Edit2 size={14} /> Edit Profile
+                  </button>
+                )}
                 {candidate.profile_completeness > 0 && (
                   <div className="text-right">
                     <div className="text-lg font-bold text-brand-600">{candidate.profile_completeness}%</div>
@@ -397,6 +562,48 @@ export default function CandidateDetailPage() {
           )}
         </div>
       </div>
+
+      {showPasteLinkedIn && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+            <div className="px-6 py-5 border-b border-surface-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-900">Enrich from LinkedIn</h2>
+              <button onClick={() => { setShowPasteLinkedIn(false); setLinkedInText(''); }} className="p-1.5 rounded-lg hover:bg-surface-100 text-slate-400"><X size={18} /></button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-slate-500">Go to the candidate's LinkedIn profile, select all text (Ctrl+A), copy it, and paste below. Claude will extract and update the profile.</p>
+              <textarea
+                className="input min-h-[160px] resize-none text-sm"
+                placeholder="Paste LinkedIn profile text here..."
+                value={linkedInText}
+                onChange={e => setLinkedInText(e.target.value)}
+              />
+              <div className="flex gap-3">
+                <button onClick={() => { setShowPasteLinkedIn(false); setLinkedInText(''); }} className="btn-secondary flex-1">Cancel</button>
+                <button
+                  onClick={() => pasteEnrichMutation.mutate()}
+                  disabled={pasteEnrichMutation.isPending || !linkedInText.trim()}
+                  className="btn-primary flex-1"
+                >
+                  {pasteEnrichMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <RefreshCw size={15} />}
+                  {pasteEnrichMutation.isPending ? 'Enriching...' : 'Enrich Profile'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEdit && (
+        <EditCandidateModal
+          candidate={candidate}
+          onClose={() => setShowEdit(false)}
+          onSaved={(updated) => {
+            queryClient.setQueryData(['candidate', id], updated);
+            queryClient.invalidateQueries({ queryKey: ['candidates'] });
+          }}
+        />
+      )}
     </div>
   );
 }

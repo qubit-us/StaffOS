@@ -39,9 +39,9 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET:-staffos_super_secret_jwt_key_change_in_production}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
-      PORT: 3001
+      PORT: 4001
     ports:
-      - "3001:3001"
+      - "4001:4001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,9 +58,9 @@ services:
       dockerfile: Dockerfile
     container_name: staffos_frontend
     environment:
-      VITE_API_URL: http://localhost:3001
+      VITE_API_URL: http://localhost:4001
     ports:
-      - "3000:3000"
+      - "4000:80"
     depends_on:
       - backend
     volumes:

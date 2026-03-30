@@ -7,6 +7,7 @@ import { resumeParser } from '../services/ai/resumeParser.js';
 import { duplicateDetector } from '../services/ai/duplicateDetector.js';
 import { linkedinEnricher } from '../services/ai/linkedinEnricher.js';
 import { logger } from '../utils/logger.js';
+import { logAudit } from '../utils/audit.js';
 
 const router = Router();
 router.use(authenticate);
@@ -84,6 +85,89 @@ router.get('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
   res.json(rows[0]);
 });
 
+function calcCompleteness(p) {
+  const checks = [
+    p.first_name, p.last_name, p.email, p.phone,
+    p.title, p.summary,
+    p.skills?.length,
+    p.years_of_experience,
+    p.location_city, p.location_state,
+    p.visa_status && p.visa_status !== 'unknown',
+    p.expected_rate_min,
+    p.availability_date,
+    p.industry_experience?.length,
+    Array.isArray(p.education) ? p.education.length : (p.education && JSON.parse(p.education || '[]').length),
+    Array.isArray(p.companies_worked) ? p.companies_worked.length : (p.companies_worked && JSON.parse(p.companies_worked || '[]').length),
+  ];
+  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+}
+
+// PATCH /api/candidates/:id — update candidate (creator or org admin only)
+router.patch('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
+  // RLS: only the submitter or an org admin can edit
+  const { rows: [existing] } = await db.query(
+    `SELECT submitted_by_user_id FROM candidates WHERE id = $1 AND org_id = $2`,
+    [req.params.id, req.orgId]
+  );
+  if (!existing) return res.status(404).json({ error: 'Candidate not found' });
+
+  const isCreator = existing.submitted_by_user_id === req.user.id;
+  const isAdmin   = ['admin', 'agency_admin', 'super_admin'].includes(req.user.role);
+
+  // Check org type for vendor-specific logic
+  const { rows: [orgInfo] } = await db.query(
+    `SELECT org_type FROM organizations WHERE id = $1`, [req.orgId]
+  );
+  const isVendorUser = orgInfo?.org_type === 'vendor';
+
+  if (!isCreator && !isAdmin && !isVendorUser) {
+    return res.status(403).json({ error: 'Only the profile creator or an admin can edit this candidate' });
+  }
+
+  // Pipeline lock: vendor users cannot edit candidates that have been submitted
+  if (isVendorUser) {
+    const { rows: subs } = await db.query(
+      `SELECT 1 FROM submissions WHERE candidate_id = $1 LIMIT 1`, [req.params.id]
+    );
+    if (subs.length) {
+      return res.status(403).json({ error: 'This candidate has been submitted to the pipeline and cannot be edited' });
+    }
+  }
+
+  const allowed = [
+    'first_name','last_name','email','phone','linkedin_url','title','summary',
+    'skills','years_of_experience','location_city','location_state','location_country',
+    'visa_status','work_authorization','relocation_preference','remote_preference',
+    'availability_date','availability_type','expected_rate_min','expected_rate_max',
+    'industry_experience','certifications','education','companies_worked','languages',
+    'is_active',
+  ];
+
+  const updates = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) updates[key] = req.body[key];
+  }
+  if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields to update' });
+
+  // Fetch current state and merge with updates to recalculate completeness
+  const { rows: [current] } = await db.query(
+    `SELECT * FROM candidates WHERE id = $1`, [req.params.id]
+  );
+  const merged = { ...current, ...updates };
+  updates.profile_completeness = calcCompleteness(merged);
+
+  const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
+  const { rows } = await db.query(
+    `UPDATE candidates SET ${sets.join(', ')} WHERE id = $1 AND org_id = $${Object.keys(updates).length + 2} RETURNING *`,
+    [req.params.id, ...Object.values(updates), req.orgId]
+  );
+  logAudit(req, 'candidate.updated', 'candidate', req.params.id, {
+    name: `${rows[0].first_name} ${rows[0].last_name}`,
+    fields: Object.keys(updates).filter(k => k !== 'profile_completeness'),
+  });
+  res.json(rows[0]);
+});
+
 // POST /api/candidates/import-linkedin — create candidate from LinkedIn profile
 router.post('/import-linkedin', requirePermission('UPLOAD_RESUME'), async (req, res) => {
   const { linkedin_url, vendor_org_id, source = 'linkedin' } = req.body;
@@ -125,6 +209,10 @@ router.post('/import-linkedin', requirePermission('UPLOAD_RESUME'), async (req, 
     ]
   );
 
+  logAudit(req, 'candidate.created', 'candidate', candidate.id, {
+    name: `${candidate.first_name} ${candidate.last_name}`,
+    source: 'linkedin_import',
+  });
   res.status(201).json({ candidate, duplicate: duplicateCheck, parseStatus: 'success' });
 });
 
@@ -189,6 +277,11 @@ router.post('/upload', requirePermission('UPLOAD_RESUME'), upload.single('resume
   await db.query('UPDATE resume_files SET candidate_id = $1, parsed = $2, parse_status = $3 WHERE id = $4',
     [candidate.id, !parseError, parseError ? 'failed' : 'success', fileRecord.id]);
 
+  logAudit(req, 'candidate.created', 'candidate', candidate.id, {
+    name: `${candidate.first_name} ${candidate.last_name}`,
+    source: 'resume_upload',
+    file: req.file.originalname,
+  });
   res.status(201).json({
     candidate,
     duplicate: duplicateCheck,
@@ -277,6 +370,49 @@ router.post('/:id/enrich-linkedin', requirePermission('UPLOAD_RESUME'), async (r
     ]
   );
 
+  logAudit(req, 'candidate.enriched', 'candidate', req.params.id, { source: 'linkedin_url' });
+  res.json({ candidate: updated.rows[0], enriched });
+});
+
+// POST /api/candidates/:id/enrich-from-text — Claude-based enrichment from pasted LinkedIn text
+router.post('/:id/enrich-from-text', requirePermission('UPLOAD_RESUME'), async (req, res) => {
+  const { text } = req.body;
+  if (!text?.trim()) return res.status(400).json({ error: 'No text provided' });
+
+  const { rows: [current] } = await db.query('SELECT * FROM candidates WHERE id = $1 AND org_id = $2', [req.params.id, req.orgId]);
+  if (!current) return res.status(404).json({ error: 'Candidate not found' });
+
+  let enriched;
+  try {
+    enriched = await linkedinEnricher.enrichFromText(text);
+  } catch (err) {
+    return res.status(502).json({ error: err.message });
+  }
+
+  const updated = await db.query(
+    `UPDATE candidates SET
+       title               = COALESCE(NULLIF($2, ''), title),
+       summary             = COALESCE(NULLIF($3, ''), summary),
+       skills              = CASE WHEN array_length(skills, 1) IS NULL THEN $4 ELSE skills END,
+       years_of_experience = COALESCE(years_of_experience, $5),
+       companies_worked    = CASE WHEN companies_worked::text = '[]' OR companies_worked IS NULL THEN $6::jsonb ELSE companies_worked END,
+       education           = CASE WHEN education::text = '[]' OR education IS NULL THEN $7::jsonb ELSE education END,
+       location_city       = COALESCE(NULLIF(location_city, ''), $8),
+       location_state      = COALESCE(NULLIF(location_state, ''), $9),
+       updated_at          = NOW()
+     WHERE id = $1 RETURNING *`,
+    [
+      req.params.id,
+      enriched.title, enriched.summary,
+      enriched.skills?.length ? enriched.skills : current.skills,
+      enriched.yearsOfExperience,
+      JSON.stringify(enriched.companies || []),
+      JSON.stringify(enriched.education || []),
+      enriched.city, enriched.state,
+    ]
+  );
+
+  logAudit(req, 'candidate.enriched', 'candidate', req.params.id, { source: 'text_paste' });
   res.json({ candidate: updated.rows[0], enriched });
 });
 
@@ -300,6 +436,11 @@ router.post('/:id/submit', requirePermission('SUBMIT_CANDIDATE'), async (req, re
     [job_id, req.params.id, req.orgId, req.user.id]
   );
 
+  logAudit(req, 'candidate.submitted', 'submission', submission.id, {
+    candidate_id: req.params.id,
+    job_id,
+    job_title: job.title,
+  });
   res.status(201).json(submission);
 });
 

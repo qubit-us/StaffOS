@@ -1,4 +1,13 @@
 import axios from 'axios';
+import Anthropic from '@anthropic-ai/sdk';
+
+let _anthropic = null;
+function getAnthropicClient() {
+  if (!_anthropic && process.env.ANTHROPIC_API_KEY) {
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return _anthropic;
+}
 
 // Normalize LinkedIn URL to the format ProxyCurl expects
 function normalizeLinkedInUrl(url) {
@@ -16,6 +25,39 @@ function normalizeLinkedInUrl(url) {
 }
 
 export const linkedinEnricher = {
+  async enrichFromText(profileText) {
+    const client = getAnthropicClient();
+    if (!client) throw new Error('Anthropic API key not configured');
+
+    const prompt = `Extract structured professional profile data from this LinkedIn profile text. Return ONLY raw JSON, no markdown.
+
+{
+  "firstName": "string or null",
+  "lastName": "string or null",
+  "title": "current headline/title",
+  "summary": "about section text",
+  "skills": ["array of skills"],
+  "companies": [{"company": "...", "title": "...", "start": "MM/YYYY", "end": "MM/YYYY or Present", "description": "..."}],
+  "education": [{"school": "...", "degree": "...", "field": "...", "start": 2018, "end": 2022}],
+  "certifications": ["cert name"],
+  "languages": [{"name": "...", "proficiency": "native|fluent|professional|basic"}],
+  "yearsOfExperience": number or null,
+  "city": "string or null",
+  "state": "string or null"
+}
+
+LinkedIn Profile:
+${profileText.slice(0, 8000)}`;
+
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      messages: [{ role: 'user', content: prompt }],
+    });
+    const raw = response.content[0].text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
+    return JSON.parse(raw);
+  },
+
   async enrich(linkedinUrl) {
     const apiKey = process.env.PROXYCURL_API_KEY;
     if (!apiKey) throw new Error('PROXYCURL_API_KEY not configured');
