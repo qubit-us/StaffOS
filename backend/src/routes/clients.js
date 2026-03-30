@@ -57,7 +57,9 @@ router.get('/', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
 router.get('/:id', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
   try {
     const { rows } = await db.query(
-      `SELECT o.*, cr.client_code, cr.status as relationship_status, cr.contract_start, cr.contract_end, cr.terms,
+      `SELECT o.*, cr.client_code, cr.status as relationship_status,
+              cr.contract_start, cr.contract_end, cr.contract_type, cr.net_payment_terms,
+              cr.notes, cr.account_manager_id, cr.terms,
               cr.created_at as onboarded_at,
               (SELECT COUNT(*) FROM jobs j WHERE j.client_org_id = o.id AND j.org_id = $2) as job_count
        FROM organizations o
@@ -120,7 +122,7 @@ router.post('/', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
 
       // 3. Create predefined client roles
       const ROLE_PERMISSIONS = {
-        'Client Admin':   `('VIEW_CLIENT_PORTAL','CREATE_REQUIREMENT','EDIT_REQUIREMENT','REVIEW_CANDIDATE','APPROVE_CANDIDATE','VIEW_SUBMISSIONS','REQUEST_INTERVIEW','VIEW_NOTIFICATIONS')`,
+        'Client Admin':   `('VIEW_CLIENT_PORTAL','CREATE_REQUIREMENT','EDIT_REQUIREMENT','REVIEW_CANDIDATE','APPROVE_CANDIDATE','VIEW_SUBMISSIONS','REQUEST_INTERVIEW','VIEW_NOTIFICATIONS','MANAGE_USERS')`,
         'Hiring Manager': `('VIEW_CLIENT_PORTAL','VIEW_SUBMISSIONS','REVIEW_CANDIDATE','APPROVE_CANDIDATE','REQUEST_INTERVIEW','VIEW_NOTIFICATIONS')`,
         'Viewer':         `('VIEW_CLIENT_PORTAL','VIEW_SUBMISSIONS','VIEW_NOTIFICATIONS')`,
       };
@@ -176,26 +178,80 @@ router.post('/', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
   }
 });
 
-// PATCH /api/clients/:id — update client relationship
+// PATCH /api/clients/:id — update client org + relationship
 router.patch('/:id', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
   try {
-    const { status, contract_start, contract_end, terms } = req.body;
-    const updates = {};
-    if (status !== undefined) updates.status = status;
-    if (contract_start !== undefined) updates.contract_start = contract_start;
-    if (contract_end !== undefined) updates.contract_end = contract_end;
-    if (terms !== undefined) updates.terms = JSON.stringify(terms);
+    const {
+      name, phone, website, industry, company_size, is_active,
+      status, contract_start, contract_end, contract_type, net_payment_terms, notes, account_manager_id, terms,
+    } = req.body;
 
-    if (!Object.keys(updates).length) return res.status(400).json({ error: 'No fields to update' });
+    const orgUpdates = Object.fromEntries(
+      Object.entries({ name, phone, website, industry, company_size, is_active }).filter(([, v]) => v !== undefined)
+    );
+    const relUpdates = Object.fromEntries(
+      Object.entries({ status, contract_start, contract_end, contract_type, net_payment_terms, notes, account_manager_id })
+        .filter(([, v]) => v !== undefined)
+    );
+    if (terms !== undefined) relUpdates.terms = JSON.stringify(terms);
 
-    const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 3}`);
+    if (!Object.keys(orgUpdates).length && !Object.keys(relUpdates).length) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    await db.transaction(async (conn) => {
+      if (Object.keys(orgUpdates).length) {
+        const sets = Object.keys(orgUpdates).map((k, i) => `${k} = $${i + 2}`);
+        await conn.query(
+          `UPDATE organizations SET ${sets.join(', ')} WHERE id = $1`,
+          [req.params.id, ...Object.values(orgUpdates)]
+        );
+      }
+      if (Object.keys(relUpdates).length) {
+        const sets = Object.keys(relUpdates).map((k, i) => `${k} = $${i + 3}`);
+        const { rows } = await conn.query(
+          `UPDATE client_relationships SET ${sets.join(', ')}
+           WHERE client_org_id = $1 AND agency_org_id = $2 RETURNING id`,
+          [req.params.id, req.orgId, ...Object.values(relUpdates)]
+        );
+        if (!rows.length) throw Object.assign(new Error('Client not found'), { status: 404 });
+      }
+    });
+
     const { rows } = await db.query(
-      `UPDATE client_relationships SET ${sets.join(', ')}
-       WHERE client_org_id = $1 AND agency_org_id = $2 RETURNING *`,
-      [req.params.id, req.orgId, ...Object.values(updates)]
+      `SELECT o.id, o.name, o.website, o.phone, o.industry, o.company_size,
+              cr.status as relationship_status, cr.contract_start, cr.contract_end,
+              cr.contract_type, cr.net_payment_terms, cr.notes, cr.account_manager_id, cr.terms
+       FROM organizations o
+       JOIN client_relationships cr ON cr.client_org_id = o.id
+       WHERE o.id = $1 AND cr.agency_org_id = $2`,
+      [req.params.id, req.orgId]
+    );
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.status === 404) return res.status(404).json({ error: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/clients/:id — remove client from agency (soft-deactivates org)
+router.delete('/:id', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT 1 FROM client_relationships WHERE client_org_id = $1 AND agency_org_id = $2`,
+      [req.params.id, req.orgId]
     );
     if (!rows.length) return res.status(404).json({ error: 'Client not found' });
-    res.json(rows[0]);
+
+    await db.transaction(async (conn) => {
+      await conn.query(`UPDATE organizations SET is_active = false WHERE id = $1`, [req.params.id]);
+      await conn.query(
+        `DELETE FROM client_relationships WHERE client_org_id = $1 AND agency_org_id = $2`,
+        [req.params.id, req.orgId]
+      );
+    });
+
+    res.json({ message: 'Client removed successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

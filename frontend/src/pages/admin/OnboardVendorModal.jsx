@@ -72,7 +72,7 @@ export default function OnboardVendorModal({ onClose }) {
 
   const [form, setForm] = useState({
     // Tab 1
-    name: '', phone: '', website: '', domain: '', industry: '', company_size: '',
+    name: '', phone: '', website: '', industry: '', company_size: '',
     specializations: [], placement_types: [],
     // Tab 2
     contract_type: 'both', contract_start: '', contract_end: '',
@@ -219,10 +219,6 @@ export default function OnboardVendorModal({ onClose }) {
                     onChange={e => set('website', e.target.value)} placeholder="https://techtalent.com" />
                 </Field>
               </FieldRow>
-              <Field label="Domain">
-                <input className="input" value={form.domain}
-                  onChange={e => set('domain', e.target.value)} placeholder="techtalent.com" />
-              </Field>
 
               <div className="pt-2 border-t border-surface-100">
                 <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Specializations</p>

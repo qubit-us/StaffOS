@@ -361,45 +361,104 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
+const MY_ACTION_LABELS = {
+  'user.login': 'Logged in',
+  'candidate.created': 'Added candidate',
+  'candidate.updated': 'Updated candidate',
+  'candidate.enriched': 'Enriched profile',
+  'candidate.submitted': 'Submitted to job',
+  'job.created': 'Created job',
+  'job.updated': 'Updated job',
+  'job.match_run': 'Ran AI match',
+  'submission.created': 'Created submission',
+  'submission.stage_changed': 'Moved pipeline stage',
+  'submission.internal_stage_changed': 'Updated internal stage',
+  'submission.profile_unlocked': 'Unlocked profile',
+  'submission.rates_updated': 'Updated rates',
+  'user.activated': 'Activated user',
+  'user.deactivated': 'Deactivated user',
+};
+
+function myActionContext(action, meta) {
+  if (!meta) return '';
+  if (meta.name) return meta.name;
+  if (meta.title) return meta.title;
+  if (meta.from_stage && meta.to_stage) return `${meta.from_stage} → ${meta.to_stage}`;
+  if (meta.job_title) return meta.job_title;
+  if (meta.email) return meta.email;
+  return '';
+}
+
 function ActivityWidget() {
-  const { data: activity = [], isLoading } = useQuery({
+  const [tab, setTab] = useState('team');
+
+  const { data: teamActivity = [], isLoading: teamLoading } = useQuery({
     queryKey: ['dashboard-activity'],
     queryFn: () => api.get('/api/dashboard/activity').then(r => r.data),
     refetchInterval: 60_000,
   });
 
+  const { data: myData, isLoading: myLoading } = useQuery({
+    queryKey: ['my-activity'],
+    queryFn: () => api.get('/api/audit-logs/my?limit=30').then(r => r.data),
+    enabled: tab === 'mine',
+  });
+  const myActivity = myData?.logs || [];
+
   return (
     <div className="card flex flex-col h-full min-h-0">
-      <div className="px-5 py-4 border-b border-surface-100 flex items-center gap-2 shrink-0">
-        <Activity size={18} className="text-brand-600" />
-        <h3 className="font-bold text-slate-800">My Activity</h3>
+      <div className="px-5 py-3 border-b border-surface-100 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <Activity size={18} className="text-brand-600" />
+          <h3 className="font-bold text-slate-800">Activity</h3>
+        </div>
+        <div className="flex gap-1 bg-surface-100 p-0.5 rounded-lg">
+          <button onClick={() => setTab('team')} className={clsx('text-xs px-3 py-1 rounded-md font-semibold transition-all', tab === 'team' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>Team</button>
+          <button onClick={() => setTab('mine')} className={clsx('text-xs px-3 py-1 rounded-md font-semibold transition-all', tab === 'mine' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>Mine</button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto min-h-0">
-        {isLoading && (
-          <div className="flex justify-center py-8">
-            <div className="w-5 h-5 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" />
-          </div>
+        {tab === 'team' && (
+          <>
+            {teamLoading && <div className="flex justify-center py-8"><div className="w-5 h-5 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" /></div>}
+            {!teamLoading && teamActivity.length === 0 && <p className="text-sm text-slate-400 text-center py-8">No recent activity</p>}
+            {teamActivity.map((item, idx) => {
+              const s = ACTIVITY_STYLES[item.type] || ACTIVITY_STYLES.job_new;
+              const Icon = s.icon;
+              return (
+                <div key={idx} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-50 transition-colors border-b border-surface-50 last:border-0">
+                  <div className={clsx('w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5', s.color)}>
+                    <Icon size={13} className="text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{item.subject}</p>
+                    <p className="text-xs text-slate-500 truncate">{item.context}</p>
+                  </div>
+                  <span className="text-[10px] text-slate-400 shrink-0 mt-0.5">{timeAgo(item.ts)}</span>
+                </div>
+              );
+            })}
+          </>
         )}
-        {!isLoading && activity.length === 0 && (
-          <p className="text-sm text-slate-400 text-center py-8">No recent activity</p>
+        {tab === 'mine' && (
+          <>
+            {myLoading && <div className="flex justify-center py-8"><div className="w-5 h-5 rounded-full border-2 border-brand-500 border-t-transparent animate-spin" /></div>}
+            {!myLoading && myActivity.length === 0 && <p className="text-sm text-slate-400 text-center py-8">No activity yet</p>}
+            {myActivity.map((log, idx) => (
+              <div key={log.id || idx} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-50 transition-colors border-b border-surface-50 last:border-0">
+                <div className="w-7 h-7 rounded-full bg-brand-50 flex items-center justify-center shrink-0 mt-0.5">
+                  <Activity size={13} className="text-brand-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-800 truncate">{MY_ACTION_LABELS[log.action] || log.action}</p>
+                  <p className="text-xs text-slate-500 truncate">{myActionContext(log.action, log.metadata)}</p>
+                </div>
+                <span className="text-[10px] text-slate-400 shrink-0 mt-0.5">{timeAgo(log.created_at)}</span>
+              </div>
+            ))}
+          </>
         )}
-        {activity.map((item, idx) => {
-          const s = ACTIVITY_STYLES[item.type] || ACTIVITY_STYLES.job_new;
-          const Icon = s.icon;
-          return (
-            <div key={idx} className="flex items-start gap-3 px-4 py-3 hover:bg-surface-50 transition-colors border-b border-surface-50 last:border-0">
-              <div className={clsx('w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5', s.color)}>
-                <Icon size={13} className="text-white" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-slate-800 truncate">{item.subject}</p>
-                <p className="text-xs text-slate-500 truncate">{item.context}</p>
-              </div>
-              <span className="text-[10px] text-slate-400 shrink-0 mt-0.5">{timeAgo(item.ts)}</span>
-            </div>
-          );
-        })}
       </div>
     </div>
   );

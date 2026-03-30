@@ -1,13 +1,14 @@
 import { Outlet, NavLink, Navigate } from 'react-router-dom';
-import { Building2, Store, Users, Settings, ShieldCheck } from 'lucide-react';
+import { Building2, Store, Users, Settings, ShieldCheck, ScrollText } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore.js';
 import { clsx } from 'clsx';
 
 const tabs = [
-  { to: '/admin/clients',  label: 'Clients',       icon: Building2,   permission: 'MANAGE_CLIENTS'   },
-  { to: '/admin/vendors',  label: 'Vendors',        icon: Store,       permission: 'MANAGE_VENDORS'   },
-  { to: '/admin/users',    label: 'Users & Roles',  icon: Users,       permission: 'MANAGE_USERS'     },
-  { to: '/admin/settings', label: 'Settings',       icon: Settings,    permission: 'MANAGE_SETTINGS'  },
+  { to: '/admin/clients',    label: 'Clients',       icon: Building2,   permission: 'MANAGE_CLIENTS'   },
+  { to: '/admin/vendors',    label: 'Vendors',        icon: Store,       permission: 'MANAGE_VENDORS'   },
+  { to: '/admin/users',      label: 'Users & Roles',  icon: Users,       permission: 'MANAGE_USERS'     },
+  { to: '/admin/audit-log',  label: 'Audit Log',      icon: ScrollText,  permission: 'MANAGE_USERS'     },
+  { to: '/admin/settings',   label: 'Settings',       icon: Settings,    permission: 'MANAGE_SETTINGS'  },
 ];
 
 export default function AdminLayout() {

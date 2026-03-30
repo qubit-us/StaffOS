@@ -12,13 +12,13 @@ import {
 import { clsx } from 'clsx';
 
 const VISA_OPTIONS = [
-  { value: 'citizen',    label: 'US Citizen' },
-  { value: 'green_card', label: 'Green Card' },
+  { value: 'citizen',    label: 'USC' },
+  { value: 'green_card', label: 'GC' },
   { value: 'h1b',        label: 'H1B' },
   { value: 'h4_ead',     label: 'H4 EAD' },
   { value: 'opt',        label: 'OPT' },
   { value: 'stem_opt',   label: 'STEM OPT' },
-  { value: 'l1',         label: 'L1' },
+  { value: 'l1',         label: 'L2 EAD' },
   { value: 'tn',         label: 'TN' },
 ];
 
@@ -127,9 +127,21 @@ function EditJobModal({ job, onClose, onSaved }) {
     status:              job.status || 'open',
     deadline:            job.deadline ? job.deadline.split('T')[0] : '',
     job_type:            job.job_type || 'contract',
-    visa_requirements:   job.visa_requirements || [],
+    visa_requirements:     job.visa_requirements || [],
+    client_org_id:         job.client_org_id || '',
+    clearance_level:       job.clearance_level || 'none',
+    clearance_status:      job.clearance_status || 'not_required',
+    polygraph:             job.polygraph || 'none',
+    education_requirement: job.education_requirement || 'none',
+    travel_requirement:    job.travel_requirement || 'none',
+    positions_count:       job.positions_count || 1,
   });
   const [saving, setSaving] = useState(false);
+
+  const { data: clientsData } = useQuery({
+    queryKey: ['clients-dropdown'],
+    queryFn: () => api.get('/api/clients?limit=100').then(r => r.data),
+  });
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
@@ -186,6 +198,15 @@ function EditJobModal({ job, onClose, onSaved }) {
                 {JOB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
               </select>
             </div>
+          </div>
+          <div>
+            <label className="label">Client</label>
+            <select className="input" value={form.client_org_id} onChange={set('client_org_id')}>
+              <option value="">Internal (no client)</option>
+              {(clientsData?.clients || []).map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="label">Visa / Work Authorization</label>
@@ -245,6 +266,66 @@ function EditJobModal({ job, onClose, onSaved }) {
           <div>
             <label className="label">Deadline</label>
             <input className="input" type="date" value={form.deadline} onChange={set('deadline')} />
+          </div>
+          {/* Security & Compliance */}
+          <div className="border-t border-surface-100 pt-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Security & Compliance</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Clearance Level</label>
+                <select className="input" value={form.clearance_level} onChange={set('clearance_level')}>
+                  <option value="none">None</option>
+                  <option value="public_trust">Public Trust</option>
+                  <option value="secret">Secret</option>
+                  <option value="top_secret">Top Secret</option>
+                  <option value="ts_sci">TS/SCI</option>
+                  <option value="ts_sci_poly">TS/SCI + Poly</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Clearance Status</label>
+                <select className="input" value={form.clearance_status} onChange={set('clearance_status')}>
+                  <option value="not_required">Not Required</option>
+                  <option value="must_have_active">Must Have Active</option>
+                  <option value="must_be_clearable">Must Be Clearable</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-3 mt-3">
+              <div>
+                <label className="label">Polygraph</label>
+                <select className="input" value={form.polygraph} onChange={set('polygraph')}>
+                  <option value="none">None</option>
+                  <option value="ci_poly">CI Polygraph</option>
+                  <option value="full_scope_poly">Full Scope Poly</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Education</label>
+                <select className="input" value={form.education_requirement} onChange={set('education_requirement')}>
+                  <option value="none">No Requirement</option>
+                  <option value="high_school">High School</option>
+                  <option value="associates">Associate's</option>
+                  <option value="bachelors">Bachelor's</option>
+                  <option value="masters">Master's</option>
+                  <option value="phd">PhD</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Travel</label>
+                <select className="input" value={form.travel_requirement} onChange={set('travel_requirement')}>
+                  <option value="none">No Travel</option>
+                  <option value="minimal">Minimal (&lt;10%)</option>
+                  <option value="up_to_25">Up to 25%</option>
+                  <option value="up_to_50">Up to 50%</option>
+                  <option value="up_to_100">Up to 100%</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="label">Number of Openings</label>
+            <input className="input max-w-xs" type="number" min="1" value={form.positions_count} onChange={set('positions_count')} />
           </div>
           <label className="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" checked={form.remote_allowed} onChange={set('remote_allowed')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
@@ -498,7 +579,7 @@ export default function JobDetailPage() {
                     </span>
                   </div>
                 ))}
-                <Link to="/pipeline" className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-medium mt-1">
+                <Link to={`/pipeline?job_id=${job.id}`} className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-medium mt-1">
                   View full pipeline <ChevronRight size={12} />
                 </Link>
               </div>

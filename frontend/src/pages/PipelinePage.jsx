@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
@@ -117,7 +118,8 @@ function ClientCard({ sub, onStageChange, onUnlock }) {
 }
 
 export default function PipelinePage() {
-  const [jobId, setJobId] = useState('');
+  const [searchParams] = useSearchParams();
+  const [jobId, setJobId] = useState(searchParams.get('job_id') || '');
   const [tab, setTab] = useState('screening');
   const qc = useQueryClient();
 
