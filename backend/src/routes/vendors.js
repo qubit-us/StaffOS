@@ -138,8 +138,8 @@ router.post('/', requirePermission('MANAGE_VENDORS'), async (req, res) => {
 
       // 4. Create POC user as Vendor Admin
       const { rows: [pocUser] } = await conn.query(
-        `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified)
-         VALUES ($1, $2, $3, $4, $5, true) RETURNING id, email, first_name, last_name`,
+        `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified, must_change_password)
+         VALUES ($1, $2, $3, $4, $5, true, true) RETURNING id, email, first_name, last_name`,
         [org.id, poc_email.toLowerCase(), passwordHash, poc_first_name || '', poc_last_name || '']
       );
       await conn.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [pocUser.id, createdRoles['Vendor Admin']]);
@@ -150,22 +150,24 @@ router.post('/', requirePermission('MANAGE_VENDORS'), async (req, res) => {
         if (!u.email?.trim()) continue;
         const roleId = createdRoles[u.role] || createdRoles['Vendor Recruiter'];
         const { rows: [newUser] } = await conn.query(
-          `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified)
-           VALUES ($1, $2, $3, $4, $5, true) RETURNING id, email, first_name, last_name`,
+          `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified, must_change_password)
+           VALUES ($1, $2, $3, $4, $5, true, true) RETURNING id, email, first_name, last_name`,
           [org.id, u.email.toLowerCase(), passwordHash, u.first_name || '', u.last_name || '']
         );
         await conn.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [newUser.id, roleId]);
         createdUsers.push(newUser);
       }
 
-      return { org, pocUser, usersCreated: createdUsers.length };
+      return { org, pocUser, createdUsers };
     });
 
     res.status(201).json({
-      organization: result.org,
-      poc_user:     result.pocUser,
-      users_created: result.usersCreated,
-      message: `Vendor onboarded successfully. All users have password: Password123!`,
+      organization:  result.org,
+      poc_user:      result.pocUser,
+      users_created: result.createdUsers.length,
+      users:         result.createdUsers,
+      temp_password: 'Password123!',
+      message: `Vendor onboarded successfully. All users have temporary password: Password123!`,
     });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'A user with this email already exists' });

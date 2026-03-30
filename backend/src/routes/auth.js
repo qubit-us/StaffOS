@@ -75,8 +75,33 @@ router.post('/login', async (req, res) => {
         orgType: user.org_type,
         permissions: perms.map(p => p.code),
         roles: roleRows.map(r => r.name),
+        mustChangePassword: user.must_change_password || false,
       },
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/change-password
+router.post('/change-password', authenticate, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both current and new password are required' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'New password must be at least 8 characters' });
+  if (currentPassword === newPassword) return res.status(400).json({ error: 'New password must be different from current password' });
+
+  try {
+    const { rows: [user] } = await db.query(`SELECT password_hash FROM users WHERE id = $1`, [req.user.id]);
+    if (!user?.password_hash) return res.status(400).json({ error: 'Password change not available for SSO accounts' });
+
+    const valid = await bcrypt.compare(currentPassword, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Current password is incorrect' });
+
+    const hash = await bcrypt.hash(newPassword, 12);
+    await db.query(`UPDATE users SET password_hash = $1, must_change_password = false WHERE id = $2`, [hash, req.user.id]);
+
+    logAudit(req, 'user.password_changed', 'user', req.user.id, {});
+    res.json({ message: 'Password changed successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

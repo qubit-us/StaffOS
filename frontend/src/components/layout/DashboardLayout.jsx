@@ -4,6 +4,7 @@ import Sidebar from './Sidebar.jsx';
 import Header from './Header.jsx';
 import api from '../../lib/api.js';
 import { useAuthStore } from '../../store/authStore.js';
+import ChangePasswordModal from '../ChangePasswordModal.jsx';
 
 export default function DashboardLayout() {
   const { token, setAuth, user } = useAuthStore();
@@ -42,6 +43,7 @@ export default function DashboardLayout() {
           </div>
         </main>
       </div>
+      {user?.mustChangePassword && <ChangePasswordModal />}
     </div>
   );
 }
