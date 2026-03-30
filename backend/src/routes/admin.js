@@ -96,11 +96,38 @@ router.get('/permissions', requirePermission('MANAGE_ROLES'), async (req, res) =
 router.get('/settings', requirePermission('MANAGE_SETTINGS'), async (req, res) => {
   try {
     const { rows } = await db.query(
-      `SELECT id, name, slug, domain, website, logo_url, settings, created_at
+      `SELECT id, name, slug, domain, website, logo_url, phone, industry, company_size,
+              address_street, address_suite, address_city, address_state, address_zip, address_country, ein,
+              settings, created_at
        FROM organizations WHERE id = $1`,
       [req.orgId]
     );
     res.json(rows[0] || {});
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/settings
+router.patch('/settings', requirePermission('MANAGE_SETTINGS'), async (req, res) => {
+  try {
+    const { name, slug, domain, website, phone, industry, company_size,
+            address_street, address_suite, address_city, address_state, address_zip, address_country, ein } = req.body;
+    const updates = Object.fromEntries(
+      Object.entries({ name, slug, domain, website, phone, industry, company_size,
+                        address_street, address_suite, address_city, address_state, address_zip, address_country, ein })
+        .filter(([, v]) => v !== undefined)
+    );
+    if (!Object.keys(updates).length) return res.status(400).json({ error: 'No fields to update' });
+
+    const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
+    const { rows: [org] } = await db.query(
+      `UPDATE organizations SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1
+       RETURNING id, name, slug, domain, website, phone, industry, company_size,
+                 address_street, address_suite, address_city, address_state, address_zip, address_country, ein, created_at`,
+      [req.orgId, ...Object.values(updates)]
+    );
+    res.json(org);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

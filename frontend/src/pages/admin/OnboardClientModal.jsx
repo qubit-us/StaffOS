@@ -46,10 +46,48 @@ function Field({ label, required, children }) {
   );
 }
 
+function CredentialsDialog({ orgName, users, password, onClose }) {
+  const lines = users.map(u => `${u.email}  |  ${password}`).join('\n');
+  const copyAll = () => { navigator.clipboard.writeText(lines); toast.success('Copied to clipboard'); };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="p-6 border-b border-surface-200">
+          <h2 className="text-lg font-bold text-slate-900">🎉 {orgName} Onboarded</h2>
+          <p className="text-sm text-slate-500 mt-1">Share these credentials with the team. They must change their password on first login.</p>
+        </div>
+        <div className="p-6 space-y-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-2">
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wider mb-2">Login Credentials</p>
+            {users.map(u => (
+              <div key={u.email} className="flex items-center justify-between text-sm">
+                <span className="font-mono text-slate-700">{u.email}</span>
+              </div>
+            ))}
+            <div className="border-t border-amber-200 pt-2 mt-2">
+              <span className="text-xs text-amber-600">Temporary password: </span>
+              <span className="font-mono font-bold text-amber-800">{password}</span>
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button onClick={copyAll} className="flex-1 btn-secondary text-sm">Copy All</button>
+            <button onClick={onClose}
+              className="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 rounded-xl text-sm transition-colors">
+              Done
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OnboardClientModal({ onClose }) {
   const qc = useQueryClient();
   const [tab, setTab] = useState(1);
   const [errors, setErrors] = useState({});
+  const [credentials, setCredentials] = useState(null);
 
   const [form, setForm] = useState({
     // Tab 1
@@ -77,9 +115,8 @@ export default function OnboardClientModal({ onClose }) {
   const { mutate, isPending } = useMutation({
     mutationFn: (data) => api.post('/api/clients', data).then(r => r.data),
     onSuccess: (data) => {
-      toast.success(`${data.organization.name} onboarded! ${data.users_created} user(s) created.`);
       qc.invalidateQueries({ queryKey: ['agency-clients'] });
-      onClose();
+      setCredentials({ orgName: data.organization.name, users: data.users, password: data.temp_password });
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to onboard client'),
   });
@@ -118,6 +155,7 @@ export default function OnboardClientModal({ onClose }) {
   });
 
   return (
+    <>
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
 
@@ -415,5 +453,14 @@ export default function OnboardClientModal({ onClose }) {
         </div>
       </div>
     </div>
+    {credentials && (
+      <CredentialsDialog
+        orgName={credentials.orgName}
+        users={credentials.users}
+        password={credentials.password}
+        onClose={onClose}
+      />
+    )}
+    </>
   );
 }

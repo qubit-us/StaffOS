@@ -143,8 +143,8 @@ router.post('/', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
 
       // 4. Create POC user as Client Admin
       const { rows: [pocUser] } = await conn.query(
-        `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified)
-         VALUES ($1,$2,$3,$4,$5,true) RETURNING id, email, first_name, last_name`,
+        `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified, must_change_password)
+         VALUES ($1,$2,$3,$4,$5,true,true) RETURNING id, email, first_name, last_name`,
         [org.id, poc_email.toLowerCase(), passwordHash, poc_first_name || '', poc_last_name || '']
       );
       await conn.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2)`, [pocUser.id, createdRoles['Client Admin']]);
@@ -155,21 +155,23 @@ router.post('/', requirePermission('MANAGE_CLIENTS'), async (req, res) => {
         if (!u.email?.trim()) continue;
         const roleId = createdRoles[u.role] || createdRoles['Viewer'];
         const { rows: [newUser] } = await conn.query(
-          `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified)
-           VALUES ($1,$2,$3,$4,$5,true) RETURNING id, email, first_name, last_name`,
+          `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified, must_change_password)
+           VALUES ($1,$2,$3,$4,$5,true,true) RETURNING id, email, first_name, last_name`,
           [org.id, u.email.toLowerCase(), passwordHash, u.first_name || '', u.last_name || '']
         );
         await conn.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1,$2)`, [newUser.id, roleId]);
         createdUsers.push({ ...newUser, role: u.role });
       }
 
-      return { org, pocUser, usersCreated: createdUsers.length };
+      return { org, pocUser, createdUsers };
     });
 
     res.status(201).json({
-      organization: result.org,
-      poc_user: result.pocUser,
-      users_created: result.usersCreated,
+      organization:  result.org,
+      poc_user:      result.pocUser,
+      users_created: result.createdUsers.length,
+      users:         result.createdUsers,
+      temp_password: 'Password123!',
       message: `Client onboarded successfully. All users have temporary password: Password123!`,
     });
   } catch (err) {

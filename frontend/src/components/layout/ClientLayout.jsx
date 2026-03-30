@@ -6,6 +6,7 @@ import api from '../../lib/api.js';
 import {
   LayoutDashboard, FileText, Users, LogOut, Zap, Bell, ShieldCheck,
 } from 'lucide-react';
+import ChangePasswordModal from '../ChangePasswordModal.jsx';
 
 const navItems = [
   { to: '/client',              icon: LayoutDashboard, label: 'Dashboard',    end: true               },
@@ -149,6 +150,7 @@ export default function ClientLayout() {
           <Outlet />
         </main>
       </div>
+      {user?.mustChangePassword && <ChangePasswordModal />}
     </div>
   );
 }

@@ -7,9 +7,16 @@ export const useAuthStore = create((set) => ({
   token: localStorage.getItem('staffos_token'),
 
   setAuth: (user, token) => {
+    const u = { ...user, mustChangePassword: user.mustChangePassword || false };
     localStorage.setItem('staffos_token', token);
-    localStorage.setItem('staffos_user', JSON.stringify(user));
-    set({ user, token });
+    localStorage.setItem('staffos_user', JSON.stringify(u));
+    set({ user: u, token });
+  },
+
+  updateUser: (partial) => {
+    const updated = { ...useAuthStore.getState().user, ...partial };
+    localStorage.setItem('staffos_user', JSON.stringify(updated));
+    set({ user: updated });
   },
 
   logout: () => {
