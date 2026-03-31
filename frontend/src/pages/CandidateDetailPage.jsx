@@ -348,15 +348,13 @@ export default function CandidateDetailPage() {
                       <Linkedin size={14} /> LinkedIn
                     </a>
                     <button
-                      onClick={() => enrichMutation.mutate()}
-                      disabled={enrichMutation.isPending}
-                      className="btn-secondary text-sm flex items-center gap-1.5"
-                      title="Pull latest data from LinkedIn"
+                      disabled
+                      className="btn-secondary text-sm flex items-center gap-1.5 opacity-50 cursor-not-allowed"
+                      title="LinkedIn enrichment is coming soon"
                     >
-                      {enrichMutation.isPending
-                        ? <Loader2 size={14} className="animate-spin" />
-                        : <RefreshCw size={14} />}
+                      <RefreshCw size={14} />
                       Enrich
+                      <span className="text-[10px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Soon</span>
                     </button>
                   </div>
                 )}

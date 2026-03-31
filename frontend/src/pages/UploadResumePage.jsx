@@ -294,7 +294,7 @@ export default function UploadResumePage() {
     <div className="max-w-4xl mx-auto space-y-6 animate-slide-up">
       <div>
         <h2 className="text-2xl font-bold text-slate-900">Add Candidates</h2>
-        <p className="text-slate-500 mt-1">Upload resumes or import directly from LinkedIn</p>
+        <p className="text-slate-500 mt-1">Upload resumes to add candidates to your pipeline</p>
       </div>
 
       {/* Tab switcher */}
@@ -308,17 +308,16 @@ export default function UploadResumePage() {
           <Upload size={15} /> Upload Resume
         </button>
         <button
-          onClick={() => setTab('linkedin')}
-          className={clsx('flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all', tab === 'linkedin'
-            ? 'bg-white text-slate-800 shadow-sm'
-            : 'text-slate-500 hover:text-slate-700')}
+          disabled
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-slate-400 cursor-not-allowed relative"
+          title="Coming soon"
         >
-          <Linkedin size={15} /> Import from LinkedIn
+          <Linkedin size={15} /> LinkedIn Import
+          <span className="ml-1 text-[10px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Soon</span>
         </button>
       </div>
 
-      {tab === 'resume'   && <ResumeUploadTab />}
-      {tab === 'linkedin' && <LinkedInImportTab />}
+      {tab === 'resume' && <ResumeUploadTab />}
 
       {/* Tips */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

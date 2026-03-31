@@ -8,8 +8,8 @@ import { Zap, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [mode, setMode] = useState('login'); // 'login' | 'signup'
-  const [email, setEmail] = useState('admin@talentbridge.io');
-  const [password, setPassword] = useState('Password123!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [orgName, setOrgName] = useState('');
@@ -19,13 +19,8 @@ export default function LoginPage() {
 
   const switchMode = (m) => {
     setMode(m);
-    if (m === 'login') {
-      setEmail('admin@talentbridge.io');
-      setPassword('Password123!');
-    } else {
-      setEmail('');
-      setPassword('');
-    }
+    setEmail('');
+    setPassword('');
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -169,34 +164,6 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {/* Demo credentials (login mode only) */}
-          {mode === 'login' && (
-            <div className="mt-6 p-4 bg-surface-50 rounded-xl border border-surface-200">
-              <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Demo Credentials</p>
-              <div className="space-y-1.5 text-xs text-slate-600">
-                <div className="flex justify-between">
-                  <span className="font-medium">Agency Admin:</span>
-                  <button type="button" className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('admin@talentbridge.io')}>admin@talentbridge.io</button>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Recruiter:</span>
-                  <button type="button" className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('recruiter@talentbridge.io')}>recruiter@talentbridge.io</button>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Client Admin:</span>
-                  <button type="button" className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('admin@acme-msp.com')}>admin@acme-msp.com</button>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Vendor:</span>
-                  <button type="button" className="font-mono text-brand-600 hover:underline" onClick={() => setEmail('vendor@techtalent.com')}>vendor@techtalent.com</button>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium">Password (all):</span>
-                  <span className="font-mono">Password123!</span>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

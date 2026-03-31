@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import api from '../lib/api.js';
 import { useAuthStore } from '../store/authStore.js';
@@ -66,25 +66,35 @@ function monthRange(year, month) {
 // TO-DO WIDGET
 // ─────────────────────────────────────────────
 function TodoWidget() {
-  const [todos, setTodos] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('staffos_todos') || '[]'); } catch { return []; }
-  });
+  const qc = useQueryClient();
   const [input, setInput] = useState('');
 
-  const save = (next) => {
-    setTodos(next);
-    localStorage.setItem('staffos_todos', JSON.stringify(next));
-  };
+  const { data, isLoading } = useQuery({
+    queryKey: ['todos'],
+    queryFn: () => api.get('/api/todos').then(r => r.data),
+  });
+  const todos = data?.todos || [];
+
+  const addTodo = useMutation({
+    mutationFn: (text) => api.post('/api/todos', { text }).then(r => r.data),
+    onSuccess: () => { setInput(''); qc.invalidateQueries({ queryKey: ['todos'] }); },
+  });
+
+  const toggleTodo = useMutation({
+    mutationFn: ({ id, done }) => api.patch(`/api/todos/${id}`, { done }).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['todos'] }),
+  });
+
+  const removeTodo = useMutation({
+    mutationFn: (id) => api.delete(`/api/todos/${id}`).then(r => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['todos'] }),
+  });
 
   const add = () => {
     const text = input.trim();
     if (!text) return;
-    save([{ id: Date.now(), text, done: false }, ...todos]);
-    setInput('');
+    addTodo.mutate(text);
   };
-
-  const toggle = (id) => save(todos.map(t => t.id === id ? { ...t, done: !t.done } : t));
-  const remove  = (id) => save(todos.filter(t => t.id !== id));
 
   const pending   = todos.filter(t => !t.done);
   const completed = todos.filter(t => t.done);
@@ -119,16 +129,17 @@ function TodoWidget() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-1 min-h-0">
-        {todos.length === 0 && (
+        {isLoading && <p className="text-sm text-slate-400 text-center py-6">Loading...</p>}
+        {!isLoading && todos.length === 0 && (
           <p className="text-sm text-slate-400 text-center py-6">No tasks yet. Add one above.</p>
         )}
         {pending.map(t => (
           <div key={t.id} className="flex items-start gap-2.5 py-2 group">
-            <button onClick={() => toggle(t.id)} className="mt-0.5 shrink-0 text-slate-300 hover:text-brand-600 transition-colors">
+            <button onClick={() => toggleTodo.mutate({ id: t.id, done: true })} className="mt-0.5 shrink-0 text-slate-300 hover:text-brand-600 transition-colors">
               <Square size={16} />
             </button>
             <span className="flex-1 text-sm text-slate-700 leading-snug">{t.text}</span>
-            <button onClick={() => remove(t.id)} className="shrink-0 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all">
+            <button onClick={() => removeTodo.mutate(t.id)} className="shrink-0 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all">
               <X size={14} />
             </button>
           </div>
@@ -138,11 +149,11 @@ function TodoWidget() {
             <p className="text-xs text-slate-400 font-medium pt-2 pb-1">Completed</p>
             {completed.map(t => (
               <div key={t.id} className="flex items-start gap-2.5 py-1.5 group opacity-50">
-                <button onClick={() => toggle(t.id)} className="mt-0.5 shrink-0 text-brand-500">
+                <button onClick={() => toggleTodo.mutate({ id: t.id, done: false })} className="mt-0.5 shrink-0 text-brand-500">
                   <CheckSquare size={16} />
                 </button>
                 <span className="flex-1 text-sm text-slate-500 line-through leading-snug">{t.text}</span>
-                <button onClick={() => remove(t.id)} className="shrink-0 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all">
+                <button onClick={() => removeTodo.mutate(t.id)} className="shrink-0 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-all">
                   <X size={14} />
                 </button>
               </div>
@@ -390,7 +401,7 @@ function myActionContext(action, meta) {
 }
 
 function ActivityWidget() {
-  const [tab, setTab] = useState('team');
+  const [tab, setTab] = useState('mine');
 
   const { data: teamActivity = [], isLoading: teamLoading } = useQuery({
     queryKey: ['dashboard-activity'],
@@ -401,7 +412,7 @@ function ActivityWidget() {
   const { data: myData, isLoading: myLoading } = useQuery({
     queryKey: ['my-activity'],
     queryFn: () => api.get('/api/audit-logs/my?limit=30').then(r => r.data),
-    enabled: tab === 'mine',
+    enabled: true,
   });
   const myActivity = myData?.logs || [];
 
@@ -413,8 +424,8 @@ function ActivityWidget() {
           <h3 className="font-bold text-slate-800">Activity</h3>
         </div>
         <div className="flex gap-1 bg-surface-100 p-0.5 rounded-lg">
-          <button onClick={() => setTab('team')} className={clsx('text-xs px-3 py-1 rounded-md font-semibold transition-all', tab === 'team' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>Team</button>
           <button onClick={() => setTab('mine')} className={clsx('text-xs px-3 py-1 rounded-md font-semibold transition-all', tab === 'mine' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>Mine</button>
+          <button onClick={() => setTab('team')} className={clsx('text-xs px-3 py-1 rounded-md font-semibold transition-all', tab === 'team' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700')}>Team</button>
         </div>
       </div>
 

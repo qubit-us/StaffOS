@@ -65,7 +65,7 @@ export default function EditVendorModal({ vendorId, onClose }) {
     queryKey: ['admin-users'],
     queryFn: () => api.get('/api/admin/users').then(r => r.data),
   });
-  const agencyUsers = usersData?.users || [];
+  const agencyUsers = (usersData?.users || []).filter(u => u.is_active);
 
   useEffect(() => {
     if (data && !form) {
@@ -100,7 +100,7 @@ export default function EditVendorModal({ vendorId, onClose }) {
     mutationFn: (body) => api.patch(`/api/vendors/${vendorId}`, body).then(r => r.data),
     onSuccess: () => {
       toast.success('Vendor updated');
-      qc.invalidateQueries({ queryKey: ['agency-vendors'] });
+      qc.refetchQueries({ queryKey: ['agency-vendors'], type: 'active' });
       onClose();
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to update vendor'),

@@ -3,6 +3,7 @@
 import { Router } from 'express';
 import { db } from '../config/database.js';
 import { authenticate, requirePermission, requireOrgType } from '../middleware/auth.js';
+import { logAudit } from '../utils/audit.js';
 
 const router = Router();
 router.use(authenticate);
@@ -161,6 +162,9 @@ router.post('/', requirePermission('MANAGE_VENDORS'), async (req, res) => {
       return { org, pocUser, createdUsers };
     });
 
+    logAudit(req, 'vendor.created', 'organization', result.org.id, {
+      name: result.org.name, poc_email: result.pocUser.email,
+    });
     res.status(201).json({
       organization:  result.org,
       poc_user:      result.pocUser,
@@ -219,6 +223,14 @@ router.patch('/:id', requirePermission('MANAGE_VENDORS'), async (req, res) => {
        WHERE o.id = $1 AND vr.agency_org_id = $2`,
       [req.params.id, req.orgId]
     );
+    const auditAction = is_active === true  ? 'vendor.activated'
+      : is_active === false                 ? 'vendor.deactivated'
+      : status    === 'active'              ? 'vendor.activated'
+      : status    === 'inactive'            ? 'vendor.deactivated'
+      : 'vendor.updated';
+    logAudit(req, auditAction, 'organization', req.params.id, {
+      name: rows[0]?.name, fields: [...Object.keys(orgUpdates), ...Object.keys(relUpdates)],
+    });
     res.json(rows[0]);
   } catch (err) {
     if (err.status === 404) return res.status(404).json({ error: err.message });
@@ -243,6 +255,7 @@ router.delete('/:id', requirePermission('MANAGE_VENDORS'), async (req, res) => {
       );
     });
 
+    logAudit(req, 'vendor.deleted', 'organization', req.params.id, {});
     res.json({ message: 'Vendor removed successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
