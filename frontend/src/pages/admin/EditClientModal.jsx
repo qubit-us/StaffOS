@@ -45,7 +45,7 @@ export default function EditClientModal({ clientId, onClose }) {
     queryKey: ['admin-users'],
     queryFn: () => api.get('/api/admin/users').then(r => r.data),
   });
-  const agencyUsers = usersData?.users || [];
+  const agencyUsers = (usersData?.users || []).filter(u => u.is_active);
 
   useEffect(() => {
     if (data && !form) {
@@ -72,7 +72,7 @@ export default function EditClientModal({ clientId, onClose }) {
     mutationFn: (body) => api.patch(`/api/clients/${clientId}`, body).then(r => r.data),
     onSuccess: () => {
       toast.success('Client updated');
-      qc.invalidateQueries({ queryKey: ['agency-clients'] });
+      qc.refetchQueries({ queryKey: ['agency-clients'], type: 'active' });
       onClose();
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to update client'),

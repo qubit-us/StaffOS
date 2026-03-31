@@ -43,6 +43,18 @@ function metaSummary(action, meta) {
   if (action === 'submission.profile_unlocked') return `job: ${meta.job_id}`;
   if (action === 'submission.rates_updated') return `agency: $${meta.agency_pay_rate} / vendor: $${meta.vendor_pay_rate}`;
   if (action === 'user.activated' || action === 'user.deactivated') return `${meta.name} (${meta.email})`;
+  if (action === 'user.invited') return `${meta.email}`;
+  if (action === 'user.updated') return `${meta.name} (${meta.email})`;
+  if (action === 'user.deleted') return `${meta.name} (${meta.email})`;
+  if (action === 'client.created') return `${meta.name} — POC: ${meta.poc_email}`;
+  if (action === 'client.updated') return `${meta.name} — fields: ${(meta.fields || []).join(', ')}`;
+  if (action === 'client.activated' || action === 'client.deactivated') return meta.name || '';
+  if (action === 'client.deleted') return meta.name || '';
+  if (action === 'vendor.created') return `${meta.name} — POC: ${meta.poc_email}`;
+  if (action === 'vendor.updated') return `${meta.name} — fields: ${(meta.fields || []).join(', ')}`;
+  if (action === 'vendor.activated' || action === 'vendor.deactivated') return meta.name || '';
+  if (action === 'vendor.deleted') return meta.name || '';
+  if (action === 'settings.updated') return `fields: ${(meta.fields || []).join(', ')}`;
   return '';
 }
 

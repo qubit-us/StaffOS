@@ -33,24 +33,132 @@ router.get('/users', requirePermission('MANAGE_USERS'), async (req, res) => {
   }
 });
 
-// PATCH /api/admin/users/:id — toggle active status
+// PATCH /api/admin/users/:id — update user (name, active status, role)
 router.patch('/users/:id', requirePermission('MANAGE_USERS'), async (req, res) => {
   try {
-    const { is_active } = req.body;
-    if (req.params.id === req.user.id) {
+    const { is_active, first_name, last_name, role_id } = req.body;
+    if (is_active === false && req.params.id === req.user.id) {
       return res.status(400).json({ error: 'You cannot deactivate your own account' });
     }
-    const { rows } = await db.query(
-      `UPDATE users SET is_active = $1
-       WHERE id = $2 AND org_id = $3
-       RETURNING id, email, first_name, last_name, is_active`,
-      [is_active, req.params.id, req.orgId]
+
+    // Build dynamic update for name/active fields
+    const fields = [];
+    const vals = [];
+    if (first_name !== undefined) { fields.push(`first_name = $${vals.length + 1}`); vals.push(first_name.trim()); }
+    if (last_name  !== undefined) { fields.push(`last_name = $${vals.length + 1}`);  vals.push(last_name.trim());  }
+    if (is_active  !== undefined) { fields.push(`is_active = $${vals.length + 1}`);  vals.push(is_active);          }
+
+    let user;
+    if (fields.length) {
+      vals.push(req.params.id, req.orgId);
+      const { rows } = await db.query(
+        `UPDATE users SET ${fields.join(', ')}
+         WHERE id = $${vals.length - 1} AND org_id = $${vals.length}
+         RETURNING id, email, first_name, last_name, is_active`,
+        vals
+      );
+      if (!rows.length) return res.status(404).json({ error: 'User not found' });
+      user = rows[0];
+    } else {
+      const { rows } = await db.query(
+        `SELECT id, email, first_name, last_name, is_active FROM users WHERE id = $1 AND org_id = $2`,
+        [req.params.id, req.orgId]
+      );
+      if (!rows.length) return res.status(404).json({ error: 'User not found' });
+      user = rows[0];
+    }
+
+    // Update role if provided
+    if (role_id !== undefined) {
+      await db.query(`DELETE FROM user_roles WHERE user_id = $1`, [user.id]);
+      if (role_id) {
+        const { rows: roleCheck } = await db.query(
+          `SELECT id FROM roles WHERE id = $1 AND org_id = $2`, [role_id, req.orgId]
+        );
+        if (roleCheck.length) {
+          await db.query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [user.id, role_id]);
+        }
+      }
+    }
+
+    const action = is_active === true ? 'user.activated' : is_active === false ? 'user.deactivated' : 'user.updated';
+    logAudit(req, action, 'user', user.id, { email: user.email, name: `${user.first_name} ${user.last_name}` });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/users/:id — remove user from org
+// If the user has related records (candidates, audit logs, etc.), soft-delete instead
+router.delete('/users/:id', requirePermission('MANAGE_USERS'), async (req, res) => {
+  try {
+    if (req.params.id === req.user.id) {
+      return res.status(400).json({ error: 'You cannot remove your own account' });
+    }
+    const { rows: found } = await db.query(
+      `SELECT id, email, first_name, last_name FROM users WHERE id = $1 AND org_id = $2`,
+      [req.params.id, req.orgId]
     );
-    if (!rows.length) return res.status(404).json({ error: 'User not found' });
-    logAudit(req, is_active ? 'user.activated' : 'user.deactivated', 'user', req.params.id, {
-      email: rows[0].email, name: `${rows[0].first_name} ${rows[0].last_name}`,
-    });
-    res.json(rows[0]);
+    if (!found.length) return res.status(404).json({ error: 'User not found' });
+    const u = found[0];
+
+    try {
+      await db.query(`DELETE FROM users WHERE id = $1`, [u.id]);
+      logAudit(req, 'user.deleted', 'user', u.id, { email: u.email, name: `${u.first_name} ${u.last_name}` });
+      res.json({ success: true, hard_deleted: true });
+    } catch (fkErr) {
+      // FK constraint — user has activity history, deactivate instead
+      if (fkErr.code === '23503') {
+        await db.query(`UPDATE users SET is_active = false WHERE id = $1`, [u.id]);
+        logAudit(req, 'user.deactivated', 'user', u.id, { email: u.email, name: `${u.first_name} ${u.last_name}`, reason: 'delete_blocked_by_fk' });
+        res.json({ success: true, hard_deleted: false, message: `${u.first_name} has activity history and cannot be permanently deleted. They have been deactivated instead.` });
+      } else {
+        throw fkErr;
+      }
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/users — invite internal agency user
+router.post('/users', requirePermission('MANAGE_USERS'), async (req, res) => {
+  const { first_name, last_name, email, role_id } = req.body;
+  if (!first_name || !last_name || !email) {
+    return res.status(400).json({ error: 'first_name, last_name, and email are required' });
+  }
+  try {
+    const bcrypt = await import('bcryptjs');
+    const tempPassword = 'Password123!';
+    const passwordHash = await bcrypt.default.hash(tempPassword, 10);
+
+    const { rows: existing } = await db.query(
+      `SELECT id FROM users WHERE email = $1`, [email.toLowerCase()]
+    );
+    if (existing.length) return res.status(409).json({ error: 'A user with that email already exists' });
+
+    const { rows: [user] } = await db.query(
+      `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified, must_change_password)
+       VALUES ($1, $2, $3, $4, $5, true, true)
+       RETURNING id, email, first_name, last_name`,
+      [req.orgId, email.toLowerCase(), passwordHash, first_name.trim(), last_name.trim()]
+    );
+
+    if (role_id) {
+      const { rows: roleCheck } = await db.query(
+        `SELECT id FROM roles WHERE id = $1 AND org_id = $2`, [role_id, req.orgId]
+      );
+      if (roleCheck.length) {
+        await db.query(
+          `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`,
+          [user.id, role_id]
+        );
+      }
+    }
+
+    logAudit(req, 'user.invited', 'user', user.id, { email: user.email });
+    res.status(201).json({ user, temp_password: tempPassword });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

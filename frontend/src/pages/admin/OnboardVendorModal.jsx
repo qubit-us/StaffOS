@@ -137,7 +137,7 @@ export default function OnboardVendorModal({ onClose }) {
     queryKey: ['admin-users'],
     queryFn: () => api.get('/api/admin/users').then(r => r.data),
   });
-  const agencyUsers = usersData?.users || [];
+  const agencyUsers = (usersData?.users || []).filter(u => u.is_active);
 
   const { mutate, isPending } = useMutation({
     mutationFn: (data) => api.post('/api/vendors', data).then(r => r.data),
