@@ -48,12 +48,12 @@ curl -X POST https://staffos-backend.railway.app/api/recover \
   -H "Content-Type: application/json" \
   -d '{
     "token": "a3f9c2e1b84d7f06e5c3a291d04b8e72f1c6a930d5e2b847f3c1a09e28d5b74f94a3c1e2",
-    "email": "admin@vdart.com",
+    "email": "admin@test.com",
     "password": "MyNewSecurePass99!"
   }'
 ```
 
-For local dev, replace the URL with `http://localhost:3000/api/recover`.
+For local dev, replace the URL with `http://localhost:3001/api/recover`.
 
 Successful response:
 ```json
@@ -61,7 +61,7 @@ Successful response:
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "user": {
     "id": "c3a1f0e2-...",
-    "email": "admin@vdart.com",
+    "email": "admin@test.com",
     "firstName": "Recovery",
     "lastName": "Admin",
     "orgType": "staffing_agency"
@@ -126,9 +126,9 @@ A standalone Node.js script (`backend/src/scripts/seed-admin.js`) that connects 
 **Option A — env vars on the command line (local)**
 
 ```bash
-ADMIN_EMAIL=admin@vdart.com \
+ADMIN_EMAIL=admin@test.com \
 ADMIN_PASSWORD=MySecurePass99! \
-AGENCY_NAME="VDart Inc" \
+AGENCY_NAME="Test Inc" \
 node backend/src/scripts/seed-admin.js
 ```
 
@@ -136,14 +136,14 @@ node backend/src/scripts/seed-admin.js
 
 ```bash
 docker compose exec backend \
-  sh -c "ADMIN_EMAIL=admin@vdart.com ADMIN_PASSWORD=MySecurePass99! AGENCY_NAME='VDart Inc' node src/scripts/seed-admin.js"
+  sh -c "ADMIN_EMAIL=admin@test.com ADMIN_PASSWORD=MySecurePass99! AGENCY_NAME='Test Inc' node src/scripts/seed-admin.js"
 ```
 
 **Option C — npm shortcut**
 
 ```bash
 cd backend
-ADMIN_EMAIL=admin@vdart.com ADMIN_PASSWORD=MySecurePass99! AGENCY_NAME="VDart Inc" npm run seed:admin
+ADMIN_EMAIL=admin@test.com ADMIN_PASSWORD=MySecurePass99! AGENCY_NAME="Test Inc" npm run seed:admin
 ```
 
 ### Parameters
@@ -173,23 +173,23 @@ ADMIN_EMAIL=admin@vdart.com ADMIN_PASSWORD=MySecurePass99! AGENCY_NAME="VDart In
 Success (new user):
 ```
 ✔ Connected to database
-✔ Found existing org: VDart Inc (id: c3a1f0e2-...)
-✔ Created admin user: admin@vdart.com
+✔ Found existing org: Test Inc (id: c3a1f0e2-...)
+✔ Created admin user: admin@test.com
 ✔ Assigned role: Agency Admin
 
 ─────────────────────────────────────────
   Recovery admin created successfully
-  Email:    admin@vdart.com
+  Email:    admin@test.com
   Password: MySecurePass99!
-  Org:      VDart Inc
+  Org:      Test Inc
 ─────────────────────────────────────────
-Log in at: http://localhost:5173/login
+Log in at: http://localhost:3000/login
 ```
 
 User already exists (no changes made):
 ```
 ✔ Connected to database
-ℹ  admin@vdart.com already exists — no changes made.
+ℹ  admin@test.com already exists — no changes made.
 ```
 
 ### Security notes
@@ -234,9 +234,9 @@ docker compose up -d
 
 # 5. Recover admin access using Option 2 (seed script)
 docker compose exec backend \
-  sh -c "ADMIN_EMAIL=admin@vdart.com ADMIN_PASSWORD=MySecurePass99! AGENCY_NAME='VDart Inc' node src/scripts/seed-admin.js"
+  sh -c "ADMIN_EMAIL=admin@test.com ADMIN_PASSWORD=MySecurePass99! AGENCY_NAME='Test Inc' node src/scripts/seed-admin.js"
 
-# 6. Log in at http://localhost:5173
+# 6. Log in at http://localhost:3000
 ```
 
 ---

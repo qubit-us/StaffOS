@@ -267,7 +267,7 @@ Agency admins can update org details at **Admin → Settings**.
 
 ### Slug behaviour
 
-The slug auto-updates when you change the organisation name (e.g. "VDart Inc" → `vdart-inc`). If you need a custom slug, edit it manually after changing the name.
+The slug auto-updates when you change the organisation name (e.g. "Test Inc" → `test-inc`). If you need a custom slug, edit it manually after changing the name.
 
 ---
 
