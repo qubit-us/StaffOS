@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
@@ -16,6 +16,12 @@ const VISA_OPTIONS = [
   { value: 'opt', label: 'OPT' }, { value: 'stem_opt', label: 'STEM OPT' },
   { value: 'l1', label: 'L2 EAD' }, { value: 'tn', label: 'TN' },
   { value: 'other', label: 'Other' }, { value: 'unknown', label: 'Unknown' },
+];
+
+const DETAIL_TABS = [
+  { id: 'summary', label: 'Summary' },
+  { id: 'personal', label: 'Personal details' },
+  { id: 'employer', label: 'Employer details' },
 ];
 
 function EditCandidateModal({ candidate, onClose, onSaved }) {
@@ -209,15 +215,46 @@ function Section({ title, icon: Icon, children }) {
   );
 }
 
+function TabButton({ tab, activeTab, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors',
+        activeTab === tab.id
+          ? 'border-brand-600 text-brand-600'
+          : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+      )}
+    >
+      {tab.label}
+    </button>
+  );
+}
+
+function DetailLine({ label, value }) {
+  return (
+    <div className="space-y-0.5">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className="text-sm text-slate-700">{value || 'N/A'}</p>
+    </div>
+  );
+}
+
 export default function CandidateDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [enrichMsg, setEnrichMsg] = useState(null);
+  const [activeTab, setActiveTab] = useState('summary');
   const [showEdit, setShowEdit] = useState(false);
   const [showPasteLinkedIn, setShowPasteLinkedIn] = useState(false);
   const [linkedInText, setLinkedInText] = useState('');
   const { user } = useAuthStore();
+
+  useEffect(() => {
+    setActiveTab('summary');
+  }, [id]);
 
   const { data: candidate, isLoading } = useQuery({
     queryKey: ['candidate', id],
@@ -406,11 +443,148 @@ export default function CandidateDetailPage() {
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left column */}
-        <div className="space-y-4">
+      <div className="card overflow-hidden">
+        <div className="flex items-end gap-1 border-b border-surface-100 bg-white px-4 sm:px-5">
+          {DETAIL_TABS.map(tab => (
+            <TabButton
+              key={tab.id}
+              tab={tab}
+              activeTab={activeTab}
+              onClick={() => setActiveTab(tab.id)}
+            />
+          ))}
+        </div>
+
+        <div className="p-4 sm:p-5 lg:p-6">
+          {activeTab === 'summary' && (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
+              <div className="xl:col-span-2 space-y-4">
+                <Section title="Overview" icon={Star}>
+                  <div className="space-y-3">
+                    <div className="text-sm text-slate-600 leading-relaxed">
+                      {candidate.ai_summary || candidate.summary || 'No summary available yet.'}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(candidate.skills || []).slice(0, 10).map(skill => (
+                        <span key={skill} className="badge bg-brand-50 text-brand-700">{skill}</span>
+                      ))}
+                      {!candidate.skills?.length && <span className="text-sm text-slate-400">No skills listed.</span>}
+                    </div>
+                  </div>
+                </Section>
+
+                <Section title="Experience Snapshot" icon={Briefcase}>
+                  <div className="space-y-4">
+                    {companies?.length > 0 ? companies.slice(0, 3).map((c, i) => (
+                      <div key={i} className={clsx('pl-4 border-l-2 border-surface-200', i > 0 && 'pt-4')}>
+                        <div className="font-semibold text-slate-800">{c.title || 'Role not listed'}</div>
+                        <div className="text-sm text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
+                          <Building2 size={12} /> {c.company || 'Unknown company'}
+                          {c.start && <span className="text-slate-300">Â·</span>}
+                          {c.start && <span>{c.start} â€“ {c.end || 'Present'}</span>}
+                        </div>
+                        {c.description && (
+                          <p className="text-sm text-slate-500 mt-1.5 line-clamp-3">{c.description}</p>
+                        )}
+                      </div>
+                    )) : (
+                      <p className="text-sm text-slate-500">No work history has been parsed yet.</p>
+                    )}
+                  </div>
+                </Section>
+              </div>
+
+              <div className="space-y-4">
+                <Section title="At a Glance" icon={Building2}>
+                  <div className="grid grid-cols-2 gap-4">
+                    <DetailLine label="Current title" value={candidate.title} />
+                    <DetailLine label="Experience" value={candidate.years_of_experience ? `${candidate.years_of_experience} years` : 'N/A'} />
+                    <DetailLine label="Location" value={candidate.location_city ? `${candidate.location_city}${candidate.location_state ? `, ${candidate.location_state}` : ''}` : 'N/A'} />
+                    <DetailLine label="Visa" value={(candidate.visa_status || 'unknown').replace(/_/g, ' ')} />
+                    <DetailLine label="Rate" value={candidate.expected_rate_min ? `$${candidate.expected_rate_min}${candidate.expected_rate_max ? `â€“$${candidate.expected_rate_max}` : '+'}/hr` : 'N/A'} />
+                    <DetailLine label="Availability" value={candidate.availability_date ? formatDate(candidate.availability_date) : 'N/A'} />
+                    <DetailLine label="Source" value={candidate.upload_source} />
+                    <DetailLine label="Profile" value={candidate.profile_completeness ? `${candidate.profile_completeness}% complete` : 'N/A'} />
+                  </div>
+                </Section>
+
+                <Section title="Profile Health" icon={CheckCircle}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-3xl font-bold text-slate-900">{candidate.profile_completeness || 0}%</div>
+                      <p className="text-sm text-slate-500 mt-1">Profile completeness</p>
+                    </div>
+                    <ScoreRing score={(candidate.profile_completeness || 0) / 100} />
+                  </div>
+                </Section>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'employer' && (
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 lg:gap-6">
+              <div className="xl:col-span-2 space-y-4">
+                <Section title="Employer Context" icon={Building2}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <DetailLine label="Vendor / source company" value={candidate.vendor_name || 'N/A'} />
+                    <DetailLine label="Submitted by" value={candidate.submitted_by_name || 'N/A'} />
+                    <DetailLine label="Upload source" value={candidate.upload_source || 'N/A'} />
+                    <DetailLine label="Current title" value={candidate.title || 'N/A'} />
+                    <DetailLine label="Years of experience" value={candidate.years_of_experience ? `${candidate.years_of_experience} years` : 'N/A'} />
+                    <DetailLine label="Availability" value={candidate.availability_date ? formatDate(candidate.availability_date) : 'N/A'} />
+                  </div>
+                </Section>
+
+                <Section title="Work Experience" icon={Briefcase}>
+                  <div className="space-y-4">
+                    {companies?.length > 0 ? companies.map((c, i) => (
+                      <div key={i} className={clsx('pl-4 border-l-2 border-surface-200', i > 0 && 'pt-4')}>
+                        <div className="font-semibold text-slate-800">{c.title || 'Role not listed'}</div>
+                        <div className="text-sm text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
+                          <Building2 size={12} /> {c.company || 'Unknown company'}
+                          {c.start && <span className="text-slate-300">Â·</span>}
+                          {c.start && <span>{c.start} â€“ {c.end || 'Present'}</span>}
+                          {c.location && <><span className="text-slate-300">Â·</span><span>{c.location}</span></>}
+                        </div>
+                        {c.description && (
+                          <p className="text-sm text-slate-500 mt-1.5 line-clamp-3">{c.description}</p>
+                        )}
+                      </div>
+                    )) : (
+                      <p className="text-sm text-slate-500">No employer history has been parsed yet.</p>
+                    )}
+                  </div>
+                </Section>
+              </div>
+
+              <div className="space-y-4">
+                <Section title="Employment Preferences" icon={Star}>
+                  <div className="space-y-3">
+                    <DetailLine label="Relocation" value={candidate.relocation_preference ? candidate.relocation_preference.replace(/_/g, ' ') : 'N/A'} />
+                    <DetailLine label="Remote preference" value={candidate.remote_preference ? candidate.remote_preference.replace(/_/g, ' ') : 'N/A'} />
+                    <DetailLine label="Rate range" value={candidate.expected_rate_min ? `$${candidate.expected_rate_min}${candidate.expected_rate_max ? `â€“$${candidate.expected_rate_max}` : '+'}/hr` : 'N/A'} />
+                    <DetailLine label="Work auth" value={(candidate.visa_status || 'unknown').replace(/_/g, ' ')} />
+                  </div>
+                </Section>
+
+                <Section title="Industries" icon={Briefcase}>
+                  <div className="flex flex-wrap gap-1.5">
+                    {candidate.industry_experience?.length > 0 ? candidate.industry_experience.map(i => (
+                      <span key={i} className="badge bg-surface-100 text-slate-600">{i}</span>
+                    )) : (
+                      <span className="text-sm text-slate-400">No industries listed.</span>
+                    )}
+                  </div>
+                </Section>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'personal' && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left column */}
+              <div className="space-y-4">
           {/* Skills */}
           {candidate.skills?.length > 0 && (
             <Section title="Skills" icon={Star}>
@@ -559,6 +733,7 @@ export default function CandidateDetailPage() {
             </Section>
           )}
         </div>
+          )}
       </div>
 
       {showPasteLinkedIn && (
