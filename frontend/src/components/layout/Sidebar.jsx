@@ -80,13 +80,23 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
-          <div className={clsx('w-9 h-9 rounded-xl flex items-center justify-center shadow-md', cfg.logoBg)}>
-            <Zap className="w-5 h-5 text-white" fill="white" />
-          </div>
-          <div>
-            <span className="font-bold text-white text-lg leading-none">StaffOS</span>
-            <p className="text-xs text-white/40 font-medium mt-0.5">{user?.roles?.[0] || cfg.tagline}</p>
-          </div>
+          {user?.orgLogo ? (
+            <img
+              src={user.orgLogo}
+              alt={user?.orgName}
+              className="h-9 max-w-[160px] object-contain rounded-lg"
+            />
+          ) : (
+            <>
+              <div className={clsx('w-9 h-9 rounded-xl flex items-center justify-center shadow-md shrink-0', cfg.logoBg)}>
+                <Zap className="w-5 h-5 text-white" fill="white" />
+              </div>
+              <div>
+                <span className="font-bold text-white text-lg leading-none">StaffOS</span>
+                <p className="text-xs text-white/40 font-medium mt-0.5">{user?.roles?.[0] || cfg.tagline}</p>
+              </div>
+            </>
+          )}
         </div>
       </div>
 

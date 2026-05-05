@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
-import { Building2, Loader2 } from 'lucide-react';
+import { Building2, Loader2, ImagePlus, X } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore.js';
 
 const INDUSTRIES = [
@@ -36,6 +36,21 @@ export default function AdminSettingsPage() {
   const { updateUser } = useAuthStore();
   const [form, setForm] = useState(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const [logoPreview, setLogoPreview] = useState(null);
+  const [logoFile, setLogoFile] = useState(null);
+
+  const handleLogoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setLogoFile(file);
+    setLogoPreview(URL.createObjectURL(file));
+  };
+
+  const clearLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+  };
 
   const { data: org, isLoading } = useQuery({
     queryKey: ['admin-settings'],
@@ -85,6 +100,46 @@ export default function AdminSettingsPage() {
 
   return (
     <div className="max-w-2xl space-y-5">
+      {/* Logo Upload */}
+      <div className="card p-6 space-y-4">
+        <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+          <ImagePlus size={16} className="text-slate-500" /> Organization Logo
+        </h3>
+        <p className="text-xs text-slate-400">Displayed in the sidebar. Supports square or wide/rectangular logos — PNG, JPG, or SVG recommended.</p>
+
+        <div className="flex items-center gap-5">
+          {/* Preview / Placeholder */}
+          <div className="relative flex-shrink-0 w-48 h-16 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
+            {logoPreview ? (
+              <>
+                <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-2" />
+                <button
+                  onClick={clearLogo}
+                  className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow text-slate-400 hover:text-red-500 transition-colors"
+                >
+                  <X size={13} />
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-1 text-slate-300">
+                <ImagePlus size={22} />
+                <span className="text-[10px] font-medium">No logo</span>
+              </div>
+            )}
+          </div>
+
+          {/* Upload button */}
+          <div className="space-y-2">
+            <label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-sm">
+              <ImagePlus size={15} />
+              {logoPreview ? 'Change Logo' : 'Upload Logo'}
+              <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoChange} />
+            </label>
+            <p className="text-[11px] text-slate-400">Max 2 MB · PNG, JPG, SVG, WebP</p>
+          </div>
+        </div>
+      </div>
+
       <div className="card p-6 space-y-5">
         <h3 className="font-semibold text-slate-800 flex items-center gap-2">
           <Building2 size={16} className="text-slate-500" /> Organization Details
