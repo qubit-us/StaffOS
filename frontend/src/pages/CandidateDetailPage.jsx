@@ -733,6 +733,7 @@ export default function CandidateDetailPage() {
             </Section>
           )}
         </div>
+            </div>
           )}
 
       {showPasteLinkedIn && (
