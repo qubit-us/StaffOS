@@ -443,6 +443,7 @@ export default function CandidateDetailPage() {
             </div>
           </div>
         </div>
+      </div>
 
       <div className="card overflow-hidden">
         <div className="flex items-end gap-1 border-b border-surface-100 bg-white px-4 sm:px-5">
@@ -735,6 +736,8 @@ export default function CandidateDetailPage() {
         </div>
             </div>
           )}
+        </div>
+      </div>
 
       {showPasteLinkedIn && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
