@@ -31,8 +31,11 @@ app.set('trust proxy', 1);
 
 // Security
 app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+const allowedOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map(o => o.trim())
+  : true;
 app.use(cors({
-  origin: process.env.FRONTEND_URL || true,
+  origin: allowedOrigins,
   credentials: true,
 }));
 
