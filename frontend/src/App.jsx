@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore.js';
 import LoginPage from './pages/LoginPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import DashboardLayout from './components/layout/DashboardLayout.jsx';
 import ClientLayout from './components/layout/ClientLayout.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
@@ -57,6 +58,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
 
         {/* Agency / Vendor portal */}
         <Route

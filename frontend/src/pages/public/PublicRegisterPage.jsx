@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Plus, X, Zap } from 'lucide-react';
+import { ArrowLeft, Plus, X, Zap, Eye, EyeOff } from 'lucide-react';
 import { GoogleLogin } from '@react-oauth/google';
 
 const API = import.meta.env.VITE_API_URL || '';
@@ -23,6 +23,7 @@ export default function PublicRegisterPage() {
   const [skills, setSkills] = useState([]);
   const [skillInput, setSkillInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -164,7 +165,13 @@ export default function PublicRegisterPage() {
             </div>
             <div>
               <label className="label">Password *</label>
-              <input type="password" className="input" required minLength={8} value={form.password} onChange={e => set('password', e.target.value)} />
+              <div className="relative">
+                <input type={showPassword ? 'text' : 'password'} className="input pr-10" required minLength={8} value={form.password} onChange={e => set('password', e.target.value)} />
+                <button type="button" onClick={() => setShowPassword(v => !v)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
               <p className="text-xs text-slate-400 mt-1">At least 8 characters</p>
             </div>
 

@@ -4,16 +4,18 @@ import { useAuthStore } from '../store/authStore.js';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
 import { GoogleLogin } from '@react-oauth/google';
-import { Zap, Loader2 } from 'lucide-react';
+import { Zap, Loader2, Eye, EyeOff } from 'lucide-react';
 
 export default function LoginPage() {
-  const [mode, setMode] = useState('login'); // 'login' | 'signup'
+  const [mode, setMode] = useState('login'); // 'login' | 'signup' | 'forgot'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [orgName, setOrgName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
   const { setAuth } = useAuthStore();
   const navigate = useNavigate();
 
@@ -21,6 +23,7 @@ export default function LoginPage() {
     setMode(m);
     setEmail('');
     setPassword('');
+    setForgotSent(false);
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {
@@ -32,6 +35,19 @@ export default function LoginPage() {
       navigate(data.user.orgType === 'client' ? '/client' : '/');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Google sign-in failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleForgot = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await api.post('/api/auth/forgot-password', { email });
+      setForgotSent(true);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to send reset link');
     } finally {
       setLoading(false);
     }
@@ -80,89 +96,128 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Mode tabs */}
-          <div className="flex rounded-xl bg-surface-100 p-1 mb-6">
-            <button
-              type="button"
-              onClick={() => switchMode('login')}
-              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode === 'login' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              Sign in
-            </button>
-            <button
-              type="button"
-              onClick={() => switchMode('signup')}
-              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode === 'signup' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              Create account
-            </button>
-          </div>
+          {/* Mode tabs — hidden when in forgot mode */}
+          {mode !== 'forgot' && (
+            <div className="flex rounded-xl bg-surface-100 p-1 mb-6">
+              <button type="button" onClick={() => switchMode('login')}
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode === 'login' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+                Sign in
+              </button>
+              <button type="button" onClick={() => switchMode('signup')}
+                className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${mode === 'signup' ? 'bg-white shadow text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>
+                Create account
+              </button>
+            </div>
+          )}
 
           <h2 className="text-2xl font-bold text-slate-900 mb-1">
-            {mode === 'login' ? 'Welcome back' : 'Get started'}
+            {mode === 'login' ? 'Welcome back' : mode === 'signup' ? 'Get started' : 'Reset password'}
           </h2>
           <p className="text-slate-500 text-sm mb-6">
-            {mode === 'login' ? 'Sign in to your organization account' : 'Create your staffing agency account'}
+            {mode === 'login' ? 'Sign in to your organization account' : mode === 'signup' ? 'Create your staffing agency account' : 'Enter your email and we\'ll send a reset link'}
           </p>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <>
-                <div className="grid grid-cols-2 gap-3">
+          {mode === 'forgot' ? (
+            <form onSubmit={handleForgot} className="space-y-4">
+              {forgotSent ? (
+                <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl p-4 text-sm">
+                  Check your inbox — if that email exists, a reset link has been sent.
+                </div>
+              ) : (
+                <>
                   <div>
-                    <label className="label">First name</label>
-                    <input type="text" className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jane" required />
+                    <label className="label">Email address</label>
+                    <input type="email" className="input" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@organization.com" required />
+                  </div>
+                  <button type="submit" disabled={loading}
+                    className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-all flex items-center justify-center gap-2">
+                    {loading && <Loader2 className="animate-spin" size={18} />}
+                    {loading ? 'Sending...' : 'Send reset link'}
+                  </button>
+                </>
+              )}
+              <button type="button" onClick={() => switchMode('login')}
+                className="w-full text-sm text-slate-500 hover:text-slate-800 transition-colors py-1">
+                ← Back to sign in
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {mode === 'signup' && (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">First name</label>
+                      <input type="text" className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Jane" required />
+                    </div>
+                    <div>
+                      <label className="label">Last name</label>
+                      <input type="text" className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Smith" required />
+                    </div>
                   </div>
                   <div>
-                    <label className="label">Last name</label>
-                    <input type="text" className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Smith" required />
+                    <label className="label">Organization name</label>
+                    <input type="text" className="input" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Acme Staffing" required />
                   </div>
+                </>
+              )}
+
+              <div>
+                <label className="label">Email address</label>
+                <input type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@organization.com" required />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="label mb-0">Password</label>
+                  {mode === 'login' && (
+                    <button type="button" onClick={() => switchMode('forgot')}
+                      className="text-xs text-brand-600 hover:text-brand-700 font-medium">
+                      Forgot password?
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label className="label">Organization name</label>
-                  <input type="text" className="input" value={orgName} onChange={(e) => setOrgName(e.target.value)} placeholder="Acme Staffing" required />
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className="input pr-10"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    minLength={8}
+                  />
+                  <button type="button" onClick={() => setShowPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
                 </div>
-              </>
-            )}
+              </div>
 
-            <div>
-              <label className="label">Email address</label>
-              <input type="email" className="input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@organization.com" required />
-            </div>
-            <div>
-              <label className="label">Password</label>
-              <input type="password" className="input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={8} />
-            </div>
+              <button type="submit" disabled={loading}
+                className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md">
+                {loading ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} />}
+                {loading ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (mode === 'login' ? 'Sign in' : 'Create account')}
+              </button>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-3 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-md"
-            >
-              {loading ? <Loader2 className="animate-spin" size={18} /> : <Zap size={18} />}
-              {loading ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (mode === 'login' ? 'Sign in' : 'Create account')}
-            </button>
+              <div className="flex items-center gap-3 my-1">
+                <div className="flex-1 h-px bg-surface-200" />
+                <span className="text-xs text-slate-400 font-medium">or</span>
+                <div className="flex-1 h-px bg-surface-200" />
+              </div>
 
-            {/* Divider */}
-            <div className="flex items-center gap-3 my-1">
-              <div className="flex-1 h-px bg-surface-200" />
-              <span className="text-xs text-slate-400 font-medium">or</span>
-              <div className="flex-1 h-px bg-surface-200" />
-            </div>
-
-            {/* Google SSO */}
-            <div className="flex justify-center">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => toast.error('Google sign-in failed. Please try again.')}
-                theme="outline"
-                size="large"
-                width="368"
-                text={mode === 'login' ? 'signin_with' : 'signup_with'}
-                shape="rectangular"
-              />
-            </div>
-          </form>
+              <div className="flex justify-center">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => toast.error('Google sign-in failed. Please try again.')}
+                  theme="outline"
+                  size="large"
+                  width="368"
+                  text={mode === 'login' ? 'signin_with' : 'signup_with'}
+                  shape="rectangular"
+                />
+              </div>
+            </form>
+          )}
 
         </div>
       </div>

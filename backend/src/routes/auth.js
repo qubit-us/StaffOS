@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
@@ -224,6 +225,84 @@ router.post('/signup', async (req, res) => {
   } catch (err) {
     const status = err.status || 500;
     res.status(status).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    const { rows: [user] } = await db.query(
+      `SELECT id, email, first_name FROM users WHERE email = $1 AND is_active = true`,
+      [email.toLowerCase()]
+    );
+
+    // Always return success to avoid email enumeration
+    if (!user) return res.json({ message: 'If that email exists, a reset link has been sent.' });
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await db.query(
+      `UPDATE users SET metadata = metadata || $1::jsonb WHERE id = $2`,
+      [JSON.stringify({ reset_token: token, reset_token_expires: expires.toISOString() }), user.id]
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://staffos.vercel.app';
+    const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
+
+    if (process.env.SMTP_HOST || process.env.SMTP_USER) {
+      const nodemailer = await import('nodemailer');
+      const transporter = nodemailer.default.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT || '587'),
+        secure: process.env.SMTP_SECURE === 'true',
+        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      });
+      await transporter.sendMail({
+        from: process.env.FROM_EMAIL || process.env.SMTP_USER,
+        to: user.email,
+        subject: 'Reset your StaffOS password',
+        html: `<p>Hi ${user.first_name},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`,
+      });
+    } else {
+      console.log(`[forgot-password] Reset URL for ${user.email}: ${resetUrl}`);
+    }
+
+    res.json({ message: 'If that email exists, a reset link has been sent.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+  try {
+    const { rows: [user] } = await db.query(
+      `SELECT id, metadata FROM users WHERE metadata->>'reset_token' = $1 AND is_active = true`,
+      [token]
+    );
+
+    if (!user) return res.status(400).json({ error: 'Invalid or expired reset link' });
+
+    const expires = new Date(user.metadata.reset_token_expires);
+    if (expires < new Date()) return res.status(400).json({ error: 'Reset link has expired. Please request a new one.' });
+
+    const hash = await bcrypt.hash(password, 12);
+    await db.query(
+      `UPDATE users SET password_hash = $1, metadata = metadata - 'reset_token' - 'reset_token_expires' WHERE id = $2`,
+      [hash, user.id]
+    );
+
+    res.json({ message: 'Password reset successfully. You can now sign in.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 
