@@ -18,8 +18,9 @@ const ALLOWED_PERMISSIONS = {
     'MANAGE_USERS','MANAGE_ROLES','MANAGE_SETTINGS','MANAGE_WEBHOOKS',
   ],
   vendor: [
-    'SUBMIT_CANDIDATE','UPLOAD_RESUME',
-    'VIEW_CANDIDATES','VIEW_PIPELINE','VIEW_NOTIFICATIONS',
+    'VIEW_JOBS',
+    'VIEW_CANDIDATES','SUBMIT_CANDIDATE','UPLOAD_RESUME',
+    'VIEW_PIPELINE','VIEW_SUBMISSIONS','VIEW_NOTIFICATIONS',
     'MANAGE_USERS','MANAGE_ROLES','MANAGE_SETTINGS',
   ],
   client: [
@@ -168,7 +169,7 @@ router.get('/permissions', requirePermission('MANAGE_USERS'), async (req, res) =
     const { rows: [org] } = await db.query(`SELECT org_type FROM organizations WHERE id = $1`, [req.orgId]);
     const allowed = ALLOWED_PERMISSIONS[org?.org_type] || [];
     const { rows } = await db.query(
-      `SELECT id, code, description FROM permissions WHERE code = ANY($1) ORDER BY code`,
+      `SELECT id, code, description, category FROM permissions WHERE code = ANY($1) ORDER BY category, code`,
       [allowed]
     );
     res.json({ permissions: rows });

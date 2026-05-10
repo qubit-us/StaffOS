@@ -131,17 +131,34 @@ function RoleModal({ onClose, editRole = null }) {
               {permissions.length === 0 ? (
                 <p className="text-sm text-slate-400">Loading permissions...</p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto border border-surface-200 rounded-xl p-3">
-                  {permissions.map(p => (
-                    <label key={p.id} className="flex items-center gap-2 cursor-pointer hover:bg-surface-50 rounded-lg p-1.5">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(p.id)}
-                        onChange={() => toggle(p.id)}
-                        className="rounded border-slate-300 text-brand-600"
-                      />
-                      <span className="text-xs font-mono text-slate-700">{p.code}</span>
-                    </label>
+                <div className="max-h-64 overflow-y-auto border border-surface-200 rounded-xl p-3 space-y-3">
+                  {Object.entries(
+                    permissions.reduce((acc, p) => {
+                      const cat = p.category || 'other';
+                      if (!acc[cat]) acc[cat] = [];
+                      acc[cat].push(p);
+                      return acc;
+                    }, {})
+                  ).map(([category, perms]) => (
+                    <div key={category}>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 capitalize">{category}</p>
+                      <div className="space-y-1">
+                        {perms.map(p => (
+                          <label key={p.id} className="flex items-center gap-2.5 cursor-pointer hover:bg-surface-50 rounded-lg px-2 py-1.5">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(p.id)}
+                              onChange={() => toggle(p.id)}
+                              className="rounded border-slate-300 text-brand-600 shrink-0"
+                            />
+                            <div>
+                              <span className="text-sm text-slate-800">{p.description}</span>
+                              <span className="text-[10px] text-slate-400 font-mono ml-1.5">{p.code}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -315,9 +332,12 @@ function RolesTab() {
                 <p className="text-sm font-semibold text-slate-900">{role.name}</p>
                 {role.description && <p className="text-xs text-slate-400 mt-0.5">{role.description}</p>}
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {(role.permissions || []).map(p => (
-                    <span key={p} className="text-[10px] font-mono bg-brand-50 text-brand-700 px-1.5 py-0.5 rounded">{p}</span>
+                  {(role.permissions || []).slice(0, 5).map(p => (
+                    <span key={p} className="text-[10px] bg-brand-50 text-brand-700 px-1.5 py-0.5 rounded">{p.replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase())}</span>
                   ))}
+                  {(role.permissions?.length || 0) > 5 && (
+                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">+{role.permissions.length - 5} more</span>
+                  )}
                   {(!role.permissions || role.permissions.length === 0) && (
                     <span className="text-xs text-slate-400 italic">No permissions</span>
                   )}
