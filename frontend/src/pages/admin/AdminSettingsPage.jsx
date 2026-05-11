@@ -76,6 +76,12 @@ export default function AdminSettingsPage() {
   });
 
   if (org && form === null) {
+    // Sync logo into auth store so sidebar reflects it without re-login
+    if (org.logo_url) {
+      const fullUrl = `${import.meta.env.VITE_API_URL || ''}${org.logo_url}`;
+      if (user?.orgLogo !== fullUrl) updateUser({ orgLogo: fullUrl });
+      if (!logoPreview) setLogoPreview(fullUrl);
+    }
     setForm({
       name:            org.name            || '',
       slug:            org.slug            || '',
