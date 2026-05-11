@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
-import { Building2, Loader2, ImagePlus, X } from 'lucide-react';
+import { Building2, Loader2, ImagePlus, X, Upload } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore.js';
 
 const INDUSTRIES = [
@@ -33,7 +33,7 @@ function formatPhone(raw) {
 
 export default function AdminSettingsPage() {
   const qc = useQueryClient();
-  const { updateUser } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const [form, setForm] = useState(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -51,6 +51,24 @@ export default function AdminSettingsPage() {
     setLogoFile(null);
     setLogoPreview(null);
   };
+
+  const { mutate: uploadLogo, isPending: logoUploading } = useMutation({
+    mutationFn: (file) => {
+      const fd = new FormData();
+      fd.append('logo', file);
+      return api.post('/api/org-admin/logo', fd).then(r => r.data);
+    },
+    onSuccess: (data) => {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const fullUrl = `${apiBase}${data.logo_url}`;
+      updateUser({ orgLogo: fullUrl });
+      setLogoPreview(fullUrl);
+      setLogoFile(null);
+      qc.invalidateQueries({ queryKey: ['admin-settings'] });
+      toast.success('Logo uploaded');
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to upload logo'),
+  });
 
   const { data: org, isLoading, isError, error } = useQuery({
     queryKey: ['admin-settings'],
@@ -115,15 +133,21 @@ export default function AdminSettingsPage() {
         <div className="flex items-center gap-5">
           {/* Preview / Placeholder */}
           <div className="relative flex-shrink-0 w-48 h-16 rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden">
-            {logoPreview ? (
+            {logoPreview || user?.orgLogo ? (
               <>
-                <img src={logoPreview} alt="Logo preview" className="h-full w-full object-contain p-2" />
-                <button
-                  onClick={clearLogo}
-                  className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow text-slate-400 hover:text-red-500 transition-colors"
-                >
-                  <X size={13} />
-                </button>
+                <img
+                  src={logoPreview || user.orgLogo}
+                  alt="Logo preview"
+                  className="h-full w-full object-contain p-2"
+                />
+                {logoPreview && (
+                  <button
+                    onClick={clearLogo}
+                    className="absolute top-1 right-1 bg-white rounded-full p-0.5 shadow text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <X size={13} />
+                  </button>
+                )}
               </>
             ) : (
               <div className="flex flex-col items-center gap-1 text-slate-300">
@@ -135,11 +159,23 @@ export default function AdminSettingsPage() {
 
           {/* Upload button */}
           <div className="space-y-2">
-            <label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-sm">
-              <ImagePlus size={15} />
-              {logoPreview ? 'Change Logo' : 'Upload Logo'}
-              <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoChange} />
-            </label>
+            <div className="flex items-center gap-2 flex-wrap">
+              <label className="cursor-pointer inline-flex items-center gap-2 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-sm font-medium px-4 py-2 rounded-xl transition-colors shadow-sm">
+                <ImagePlus size={15} />
+                {logoPreview ? 'Change' : 'Choose Logo'}
+                <input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" className="hidden" onChange={handleLogoChange} />
+              </label>
+              {logoFile && (
+                <button
+                  onClick={() => uploadLogo(logoFile)}
+                  disabled={logoUploading}
+                  className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+                >
+                  {logoUploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                  {logoUploading ? 'Uploading...' : 'Upload'}
+                </button>
+              )}
+            </div>
             <p className="text-[11px] text-slate-400">Max 2 MB · PNG, JPG, SVG, WebP</p>
           </div>
         </div>
