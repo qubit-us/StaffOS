@@ -77,36 +77,31 @@ export default function Sidebar() {
 
   return (
     <aside className={clsx('w-64 flex flex-col h-full shrink-0', cfg.sidebar)}>
-      {/* Logo */}
+      {/* StaffOS branding — always shown */}
       <div className="p-6 border-b border-white/10">
         <div className="flex items-center gap-3">
-          {user?.orgLogo ? (
-            <img
-              src={user.orgLogo}
-              alt={user?.orgName}
-              className="h-9 max-w-[160px] object-contain rounded-lg"
-            />
-          ) : (
-            <>
-              <div className={clsx('w-9 h-9 rounded-xl flex items-center justify-center shadow-md shrink-0', cfg.logoBg)}>
-                <Zap className="w-5 h-5 text-white" fill="white" />
-              </div>
-              <div>
-                <span className="font-bold text-white text-lg leading-none">StaffOS</span>
-                <p className="text-xs text-white/40 font-medium mt-0.5">{user?.roles?.[0] || cfg.tagline}</p>
-              </div>
-            </>
-          )}
+          <div className={clsx('w-9 h-9 rounded-xl flex items-center justify-center shadow-md shrink-0', cfg.logoBg)}>
+            <Zap className="w-5 h-5 text-white" fill="white" />
+          </div>
+          <div>
+            <span className="font-bold text-white text-lg leading-none">StaffOS</span>
+            <p className="text-xs text-white/40 font-medium mt-0.5">{user?.roles?.[0] || cfg.tagline}</p>
+          </div>
         </div>
       </div>
 
       {/* Org badge */}
       <div className={clsx('px-4 py-3 mx-3 mt-4 rounded-xl border border-white/10', cfg.orgBadgeBg)}>
-        <p className={clsx('text-[10px] font-semibold uppercase tracking-wider', cfg.orgBadgeText)}>
-          Organization
-        </p>
-        <p className="text-sm font-bold text-white mt-0.5 truncate">{user?.orgName}</p>
-        <span className={clsx('inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full font-semibold capitalize', cfg.orgTypePill)}>
+        {user?.orgLogo ? (
+          <img
+            src={user.orgLogo}
+            alt={user?.orgName}
+            className="h-8 max-w-[140px] object-contain mb-2"
+          />
+        ) : (
+          <p className="text-sm font-bold text-white truncate">{user?.orgName}</p>
+        )}
+        <span className={clsx('inline-block text-[11px] px-2 py-0.5 rounded-full font-semibold capitalize', cfg.orgTypePill)}>
           {user?.roles?.[0] || user?.orgType?.replace('_', ' ')}
         </span>
       </div>
