@@ -91,17 +91,16 @@ export default function Sidebar() {
       </div>
 
       {/* Org badge */}
-      <div className={clsx('px-4 py-3 mx-3 mt-4 rounded-xl border border-white/10', cfg.orgBadgeBg)}>
-        {user?.orgLogo ? (
+      <div className={clsx('px-4 py-3 mx-3 mt-4 rounded-xl border border-white/10 flex flex-col items-center text-center', cfg.orgBadgeBg)}>
+        {user?.orgLogo && (
           <img
             src={user.orgLogo}
             alt={user?.orgName}
             className="h-8 max-w-[140px] object-contain mb-2"
           />
-        ) : (
-          <p className="text-sm font-bold text-white truncate">{user?.orgName}</p>
         )}
-        <span className={clsx('inline-block text-[11px] px-2 py-0.5 rounded-full font-semibold capitalize', cfg.orgTypePill)}>
+        <p className="text-sm font-bold text-white truncate w-full text-center">{user?.orgName}</p>
+        <span className={clsx('inline-block mt-1 text-[11px] px-2 py-0.5 rounded-full font-semibold capitalize', cfg.orgTypePill)}>
           {user?.roles?.[0] || user?.orgType?.replace('_', ' ')}
         </span>
       </div>
