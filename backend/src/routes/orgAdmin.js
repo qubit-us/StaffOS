@@ -2,8 +2,26 @@
 // Scoped entirely to req.orgId from JWT
 
 import { Router } from 'express';
+import multer from 'multer';
+import path from 'path';
 import { db } from '../config/database.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
+
+const logoStorage = multer.diskStorage({
+  destination: './uploads/logos',
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
+    cb(null, `${req.orgId}${ext}`);
+  },
+});
+const uploadLogo = multer({
+  storage: logoStorage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_, file, cb) => {
+    if (/^image\//.test(file.mimetype)) cb(null, true);
+    else cb(new Error('Only image files are allowed'));
+  },
+});
 
 // Permissions available per org type for custom role creation
 const ALLOWED_PERMISSIONS = {
@@ -318,6 +336,21 @@ router.patch('/settings', requirePermission('MANAGE_USERS'), async (req, res) =>
       [req.orgId, ...Object.values(updates)]
     );
     res.json(org);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/org-admin/logo
+router.post('/logo', requirePermission('MANAGE_SETTINGS'), uploadLogo.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const logoUrl = `/uploads/logos/${req.file.filename}`;
+    await db.query(
+      `UPDATE organizations SET logo_url = $1, updated_at = NOW() WHERE id = $2`,
+      [logoUrl, req.orgId]
+    );
+    res.json({ logo_url: logoUrl });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

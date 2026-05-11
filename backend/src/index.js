@@ -20,8 +20,9 @@ import orgAdminRoutes from './routes/orgAdmin.js';
 import todoRoutes from './routes/todos.js';
 import { mkdirSync } from 'fs';
 
-// Ensure upload dir exists
+// Ensure upload dirs exist
 try { mkdirSync('./uploads/resumes', { recursive: true }); } catch {}
+try { mkdirSync('./uploads/logos', { recursive: true }); } catch {}
 
 const app = express();
 const PORT = process.env.PORT || 3001;

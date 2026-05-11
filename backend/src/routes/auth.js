@@ -21,7 +21,7 @@ router.post('/login', async (req, res) => {
 
   try {
     const { rows } = await db.query(
-      `SELECT u.*, o.org_type, o.name as org_name, o.slug as org_slug
+      `SELECT u.*, o.org_type, o.name as org_name, o.slug as org_slug, o.logo_url as org_logo
        FROM users u JOIN organizations o ON u.org_id = o.id
        WHERE u.email = $1 AND u.is_active = true`,
       [email.toLowerCase()]
@@ -74,6 +74,7 @@ router.post('/login', async (req, res) => {
         orgName: user.org_name,
         orgSlug: user.org_slug,
         orgType: user.org_type,
+        orgLogo: user.org_logo || null,
         permissions: perms.map(p => p.code),
         roles: roleRows.map(r => r.name),
         mustChangePassword: user.must_change_password || false,
@@ -135,6 +136,7 @@ router.get('/me', authenticate, async (req, res) => {
         orgName: u.org_name,
         orgSlug: u.org_slug,
         orgType: u.org_type,
+        orgLogo: u.org_logo || null,
         permissions: perms.map(p => p.code),
         roles: roleRows.map(r => r.name),
       },

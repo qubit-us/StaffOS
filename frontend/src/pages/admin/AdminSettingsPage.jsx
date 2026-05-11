@@ -52,7 +52,7 @@ export default function AdminSettingsPage() {
     setLogoPreview(null);
   };
 
-  const { data: org, isLoading } = useQuery({
+  const { data: org, isLoading, isError, error } = useQuery({
     queryKey: ['admin-settings'],
     queryFn: () => api.get('/api/admin/settings').then(r => r.data),
   });
@@ -94,9 +94,14 @@ export default function AdminSettingsPage() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to save'),
   });
 
-  if (isLoading || !form) {
-    return <div className="p-10 text-center text-slate-400 text-sm">Loading...</div>;
-  }
+  if (isLoading) return <div className="p-10 text-center text-slate-400 text-sm">Loading...</div>;
+  if (isError) return (
+    <div className="p-10 text-center text-sm">
+      <p className="text-red-500 font-medium">Failed to load settings</p>
+      <p className="text-slate-400 mt-1">{error?.response?.data?.error || error?.message}</p>
+    </div>
+  );
+  if (!form) return null;
 
   return (
     <div className="max-w-2xl space-y-5">

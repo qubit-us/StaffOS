@@ -13,7 +13,7 @@ export const authenticate = async (req, res, next) => {
 
     const { rows } = await db.query(
       `SELECT u.id, u.org_id, u.email, u.first_name, u.last_name, u.is_active,
-              o.org_type, o.slug as org_slug, o.name as org_name
+              o.org_type, o.slug as org_slug, o.name as org_name, o.logo_url as org_logo
        FROM users u JOIN organizations o ON u.org_id = o.id
        WHERE u.id = $1 AND u.is_active = true AND o.is_active = true`,
       [decoded.userId]

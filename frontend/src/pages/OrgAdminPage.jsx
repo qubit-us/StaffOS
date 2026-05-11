@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore.js';
 import {
   Users, Settings, Plus, X, Loader2, Pencil, Trash2,
-  UserCheck, UserX, ShieldCheck, Lock,
+  UserCheck, UserX, ShieldCheck, Lock, Upload,
 } from 'lucide-react';
 
 // ── Add User Modal ───────────────────────────────────────────
@@ -393,12 +393,14 @@ function RolesTab() {
 // ── Settings Tab ─────────────────────────────────────────────
 function SettingsTab() {
   const qc = useQueryClient();
-  const { data: org, isLoading } = useQuery({
+  const { user, updateUser } = useAuthStore();
+  const { data: org, isLoading, isError, error } = useQuery({
     queryKey: ['org-admin-settings'],
     queryFn: () => api.get('/api/org-admin/settings').then(r => r.data),
   });
 
   const [form, setForm] = useState(null);
+  const [logoFile, setLogoFile] = useState(null);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
   if (org && form === null) {
@@ -418,10 +420,72 @@ function SettingsTab() {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to save settings'),
   });
 
-  if (isLoading || !form) return <div className="p-10 text-center text-slate-400 text-sm">Loading settings...</div>;
+  const { mutate: doUploadLogo, isPending: logoUploading } = useMutation({
+    mutationFn: (file) => {
+      const fd = new FormData();
+      fd.append('logo', file);
+      return api.post('/api/org-admin/logo', fd).then(r => r.data);
+    },
+    onSuccess: (data) => {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      updateUser({ orgLogo: `${apiBase}${data.logo_url}` });
+      qc.invalidateQueries({ queryKey: ['org-admin-settings'] });
+      setLogoFile(null);
+      toast.success('Logo updated');
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to upload logo'),
+  });
+
+  if (isLoading) return <div className="p-10 text-center text-slate-400 text-sm">Loading settings...</div>;
+  if (isError) return (
+    <div className="p-10 text-center text-sm">
+      <p className="text-red-500 font-medium">Failed to load settings</p>
+      <p className="text-slate-400 mt-1">{error?.response?.data?.error || error?.message}</p>
+    </div>
+  );
+  if (!form) return null;
+
+  const currentLogo = org?.logo_url
+    ? `${import.meta.env.VITE_API_URL || ''}${org.logo_url}`
+    : user?.orgLogo;
 
   return (
     <div className="card p-6 max-w-lg space-y-4">
+      {/* Logo Upload */}
+      <div className="border-b border-surface-200 pb-5">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Organization Logo</p>
+        <div className="flex items-center gap-4">
+          {currentLogo ? (
+            <img src={currentLogo} alt="Logo" className="h-14 max-w-[140px] object-contain rounded-lg border border-surface-200 bg-surface-50 p-1" />
+          ) : (
+            <div className="w-14 h-14 bg-surface-100 rounded-lg flex items-center justify-center text-slate-300 border border-surface-200">
+              <Upload size={22} />
+            </div>
+          )}
+          <div>
+            <div className="flex items-center gap-2">
+              <label htmlFor="logo-upload" className="btn-secondary cursor-pointer text-sm py-1.5 px-3">
+                Choose Image
+              </label>
+              <input
+                type="file" id="logo-upload" accept="image/*" className="hidden"
+                onChange={e => setLogoFile(e.target.files[0] || null)}
+              />
+              {logoFile && (
+                <button
+                  onClick={() => doUploadLogo(logoFile)}
+                  disabled={logoUploading}
+                  className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-sm font-semibold px-3 py-1.5 rounded-xl transition-colors"
+                >
+                  {logoUploading ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+                  {logoUploading ? 'Uploading...' : `Upload "${logoFile.name}"`}
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-slate-400 mt-1.5">PNG, JPG or SVG · max 2 MB · square or rectangle</p>
+          </div>
+        </div>
+      </div>
       <div>
         <label className="label">Organization Name</label>
         <input className="input" value={form.name} onChange={e => set('name', e.target.value)} />
