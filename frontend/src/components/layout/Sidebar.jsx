@@ -82,7 +82,7 @@ export default function Sidebar() {
         <div className="flex items-center gap-3">
           {user?.orgLogo ? (
             <img
-              src={user.orgLogo?.startsWith('http') ? user.orgLogo : `${import.meta.env.VITE_API_URL || ''}${user.orgLogo}`}
+              src={user.orgLogo}
               alt={user?.orgName}
               className="h-9 max-w-[160px] object-contain rounded-lg"
             />

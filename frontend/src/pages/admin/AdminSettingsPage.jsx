@@ -59,10 +59,8 @@ export default function AdminSettingsPage() {
       return api.post('/api/org-admin/logo', fd).then(r => r.data);
     },
     onSuccess: (data) => {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const fullUrl = `${apiBase}${data.logo_url}`;
-      updateUser({ orgLogo: fullUrl });
-      setLogoPreview(fullUrl);
+      updateUser({ orgLogo: data.logo_url });
+      setLogoPreview(data.logo_url);
       setLogoFile(null);
       qc.invalidateQueries({ queryKey: ['admin-settings'] });
       toast.success('Logo uploaded');
@@ -78,9 +76,8 @@ export default function AdminSettingsPage() {
   if (org && form === null) {
     // Sync logo into auth store so sidebar reflects it without re-login
     if (org.logo_url) {
-      const fullUrl = `${import.meta.env.VITE_API_URL || ''}${org.logo_url}`;
-      if (user?.orgLogo !== fullUrl) updateUser({ orgLogo: fullUrl });
-      if (!logoPreview) setLogoPreview(fullUrl);
+      if (user?.orgLogo !== org.logo_url) updateUser({ orgLogo: org.logo_url });
+      if (!logoPreview) setLogoPreview(org.logo_url);
     }
     setForm({
       name:            org.name            || '',

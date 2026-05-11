@@ -427,8 +427,7 @@ function SettingsTab() {
       return api.post('/api/org-admin/logo', fd).then(r => r.data);
     },
     onSuccess: (data) => {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      updateUser({ orgLogo: `${apiBase}${data.logo_url}` });
+      updateUser({ orgLogo: data.logo_url });
       qc.invalidateQueries({ queryKey: ['org-admin-settings'] });
       setLogoFile(null);
       toast.success('Logo updated');
@@ -445,9 +444,7 @@ function SettingsTab() {
   );
   if (!form) return null;
 
-  const currentLogo = org?.logo_url
-    ? `${import.meta.env.VITE_API_URL || ''}${org.logo_url}`
-    : user?.orgLogo;
+  const currentLogo = org?.logo_url || user?.orgLogo;
 
   return (
     <div className="card p-6 max-w-lg space-y-4">
