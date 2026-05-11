@@ -85,7 +85,6 @@ export default function Sidebar() {
           </div>
           <div>
             <span className="font-bold text-white text-lg leading-none">StaffOS</span>
-            <p className="text-xs text-white/40 font-medium mt-0.5">{user?.roles?.[0] || cfg.tagline}</p>
           </div>
         </div>
       </div>
