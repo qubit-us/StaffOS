@@ -33,6 +33,7 @@ export default function ClientLayout() {
         orgName:     u.orgName    || u.org_name,
         orgSlug:     u.orgSlug    || u.org_slug,
         orgType:     u.orgType    || u.org_type,
+        orgLogo:     u.orgLogo    || u.org_logo  || null,
         permissions: u.permissions || [],
         roles:       u.roles       || [],
       };
