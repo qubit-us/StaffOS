@@ -92,6 +92,7 @@ export default function Header() {
   };
 
   return (
+    <>
     <header className="h-16 bg-white border-b border-surface-200 px-6 flex items-center justify-between shrink-0">
       <div>
         <h1 className="text-lg font-bold text-slate-900 leading-none">{meta.title}</h1>
@@ -178,5 +179,6 @@ export default function Header() {
     </header>
 
     {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+    </>
   );
 }
