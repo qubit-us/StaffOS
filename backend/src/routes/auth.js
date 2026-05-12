@@ -109,6 +109,26 @@ router.post('/change-password', authenticate, async (req, res) => {
   }
 });
 
+// PATCH /api/auth/profile
+router.patch('/profile', authenticate, async (req, res) => {
+  try {
+    const { first_name, last_name } = req.body;
+    const updates = Object.fromEntries(
+      Object.entries({ first_name, last_name }).filter(([, v]) => v !== undefined)
+    );
+    if (!Object.keys(updates).length) return res.status(400).json({ error: 'No fields to update' });
+    const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
+    const { rows: [user] } = await db.query(
+      `UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1
+       RETURNING id, email, first_name, last_name`,
+      [req.user.id, ...Object.values(updates)]
+    );
+    res.json({ user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/auth/me
 router.get('/me', authenticate, async (req, res) => {
   try {

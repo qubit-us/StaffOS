@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Bell, Search, ChevronDown } from 'lucide-react';
+import { Bell, Search, ChevronDown, User, LogOut } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore.js';
+import ProfileModal from '../ProfileModal.jsx';
 
 const titles = {
   '/':           { title: 'Dashboard',     subtitle: 'Overview of your recruiting activity' },
@@ -57,7 +58,7 @@ const ROLE_ACCENTS = {
 export default function Header() {
   const location  = useLocation();
   const navigate  = useNavigate();
-  const { user }  = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   const isVendor  = user?.orgType === 'vendor';
   const scopes    = isVendor ? vendorScopes : agencyScopes;
@@ -66,9 +67,22 @@ export default function Header() {
 
   const meta = titleMap[location.pathname] || { title: 'StaffOS', subtitle: '' };
 
-  const [scope,     setScope]     = useState(scopes[0]);
-  const [query,     setQuery]     = useState('');
-  const [scopeOpen, setScopeOpen] = useState(false);
+  const [scope,        setScope]        = useState(scopes[0]);
+  const [query,        setQuery]        = useState('');
+  const [scopeOpen,    setScopeOpen]    = useState(false);
+  const [profileOpen,  setProfileOpen]  = useState(false);
+  const [showProfile,  setShowProfile]  = useState(false);
+  const avatarRef = useRef(null);
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (avatarRef.current && !avatarRef.current.contains(e.target)) {
+        setProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -130,10 +144,39 @@ export default function Header() {
           <span className={`absolute top-1.5 right-1.5 w-2 h-2 rounded-full ${accent.dot}`} />
         </button>
 
-        <div className={`w-8 h-8 bg-gradient-to-br rounded-full flex items-center justify-center text-white font-bold text-xs ${accent.avatar}`}>
-          {user?.firstName?.[0]}{user?.lastName?.[0]}
+        {/* Avatar + dropdown */}
+        <div className="relative" ref={avatarRef}>
+          <button
+            onClick={() => setProfileOpen(o => !o)}
+            className={`w-8 h-8 bg-gradient-to-br rounded-full flex items-center justify-center text-white font-bold text-xs ring-2 ring-transparent hover:ring-white/30 transition-all ${accent.avatar}`}
+          >
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </button>
+
+          {profileOpen && (
+            <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-surface-200 rounded-xl shadow-lg z-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-surface-100">
+                <p className="text-sm font-semibold text-slate-900 truncate">{user?.firstName} {user?.lastName}</p>
+                <p className="text-xs text-slate-400 truncate">{user?.email}</p>
+              </div>
+              <button
+                onClick={() => { setShowProfile(true); setProfileOpen(false); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-surface-50 transition-colors"
+              >
+                <User size={15} className="text-slate-400" /> My Profile
+              </button>
+              <button
+                onClick={() => { logout(); navigate('/login'); }}
+                className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors border-t border-surface-100"
+              >
+                <LogOut size={15} /> Sign Out
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </header>
+
+    {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
   );
 }
