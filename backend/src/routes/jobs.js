@@ -24,7 +24,13 @@ router.get('/', requirePermission('VIEW_JOBS'), async (req, res) => {
   const { status, page = 1, limit = 20, search } = req.query;
   const offset = (page - 1) * limit;
 
-  let where = `j.org_id = $1`;
+  const isVendor = req.user.org_type === 'vendor';
+
+  // Vendors see open jobs from agencies they have an active relationship with
+  let where = isVendor
+    ? `j.org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $1 AND status = 'active')`
+    : `j.org_id = $1`;
+
   const params = [req.orgId];
   let paramIdx = 2;
 
@@ -57,6 +63,11 @@ router.get('/', requirePermission('VIEW_JOBS'), async (req, res) => {
 
 // GET /api/jobs/:id
 router.get('/:id', requirePermission('VIEW_JOBS'), async (req, res) => {
+  const isVendor = req.user.org_type === 'vendor';
+  const orgCheck = isVendor
+    ? `j.org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $2 AND status = 'active')`
+    : `j.org_id = $2`;
+
   const { rows } = await db.query(
     `SELECT j.*,
        c.name as client_name, ec.name as end_client_name,
@@ -65,7 +76,7 @@ router.get('/:id', requirePermission('VIEW_JOBS'), async (req, res) => {
      LEFT JOIN organizations c ON c.id = j.client_org_id
      LEFT JOIN organizations ec ON ec.id = j.end_client_org_id
      LEFT JOIN users u ON u.id = j.created_by
-     WHERE j.id = $1 AND j.org_id = $2`,
+     WHERE j.id = $1 AND ${orgCheck}`,
     [req.params.id, req.orgId]
   );
   if (!rows.length) return res.status(404).json({ error: 'Job not found' });

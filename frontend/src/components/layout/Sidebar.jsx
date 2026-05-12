@@ -44,6 +44,7 @@ const ROLE_CONFIG = {
     userAvatar: 'from-violet-500 to-violet-700',
     navItems: [
       { to: '/',              icon: LayoutDashboard, label: 'Dashboard',      end: true                  },
+      { to: '/jobs',          icon: Briefcase,       label: 'Jobs',           permission: 'VIEW_JOBS'    },
       { to: '/candidates',    icon: Users,           label: 'My Candidates'                              },
       { to: '/pipeline',      icon: GitPullRequest,  label: 'My Submissions'                             },
       { to: '/upload',        icon: Upload,          label: 'Upload Resume'                              },
