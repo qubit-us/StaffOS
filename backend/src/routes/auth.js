@@ -2,10 +2,15 @@ import { Router } from 'express';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import path from 'path';
+import multer from 'multer';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { logAudit } from '../utils/audit.js';
+import { uploadToR2 } from '../utils/r2.js';
+
+const uploadAvatar = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -70,6 +75,8 @@ router.post('/login', async (req, res) => {
         email: user.email,
         firstName: user.first_name,
         lastName: user.last_name,
+        phone: user.phone || null,
+        avatarUrl: user.avatar_url || null,
         orgId: user.org_id,
         orgName: user.org_name,
         orgSlug: user.org_slug,
@@ -112,18 +119,42 @@ router.post('/change-password', authenticate, async (req, res) => {
 // PATCH /api/auth/profile
 router.patch('/profile', authenticate, async (req, res) => {
   try {
-    const { first_name, last_name } = req.body;
+    const { first_name, last_name, phone } = req.body;
     const updates = Object.fromEntries(
-      Object.entries({ first_name, last_name }).filter(([, v]) => v !== undefined)
+      Object.entries({ first_name, last_name, phone }).filter(([, v]) => v !== undefined)
     );
     if (!Object.keys(updates).length) return res.status(400).json({ error: 'No fields to update' });
     const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
     const { rows: [user] } = await db.query(
       `UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1
-       RETURNING id, email, first_name, last_name`,
+       RETURNING id, email, first_name, last_name, phone, avatar_url`,
       [req.user.id, ...Object.values(updates)]
     );
     res.json({ user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/auth/profile/avatar
+router.post('/profile/avatar', authenticate, uploadAvatar.single('avatar'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const ext = path.extname(req.file.originalname).toLowerCase() || '.jpg';
+    const key = `avatars/${req.user.id}${ext}`;
+    const avatarUrl = await uploadToR2(key, req.file.buffer, req.file.mimetype);
+    await db.query(`UPDATE users SET avatar_url = $1, updated_at = NOW() WHERE id = $2`, [avatarUrl, req.user.id]);
+    res.json({ avatar_url: avatarUrl });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/auth/profile/avatar
+router.delete('/profile/avatar', authenticate, async (req, res) => {
+  try {
+    await db.query(`UPDATE users SET avatar_url = NULL, updated_at = NOW() WHERE id = $1`, [req.user.id]);
+    res.json({ message: 'Avatar removed' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -152,6 +183,8 @@ router.get('/me', authenticate, async (req, res) => {
         email: u.email,
         firstName: u.first_name,
         lastName: u.last_name,
+        phone: u.phone || null,
+        avatarUrl: u.avatar_url || null,
         orgId: u.org_id,
         orgName: u.org_name,
         orgSlug: u.org_slug,

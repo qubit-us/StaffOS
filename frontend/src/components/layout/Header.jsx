@@ -149,9 +149,12 @@ export default function Header() {
         <div className="relative" ref={avatarRef}>
           <button
             onClick={() => setProfileOpen(o => !o)}
-            className={`w-8 h-8 bg-gradient-to-br rounded-full flex items-center justify-center text-white font-bold text-xs ring-2 ring-transparent hover:ring-white/30 transition-all ${accent.avatar}`}
+            className={`w-8 h-8 bg-gradient-to-br rounded-full flex items-center justify-center text-white font-bold text-xs ring-2 ring-transparent hover:ring-white/30 transition-all overflow-hidden ${accent.avatar}`}
           >
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
+            {user?.avatarUrl
+              ? <img src={user.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
+              : <>{user?.firstName?.[0]}{user?.lastName?.[0]}</>
+            }
           </button>
 
           {profileOpen && (
