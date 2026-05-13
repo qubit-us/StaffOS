@@ -83,9 +83,9 @@ export default function ProfileModal({ onClose }) {
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-surface-200">
+        <div className="flex items-center justify-between p-6 border-b border-surface-200 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
               <User size={16} className="text-brand-600" />
@@ -100,7 +100,7 @@ export default function ProfileModal({ onClose }) {
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Avatar */}
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
