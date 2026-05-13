@@ -76,6 +76,7 @@ router.post('/login', async (req, res) => {
         firstName: user.first_name,
         lastName: user.last_name,
         phone: user.phone || null,
+        title: user.title || null,
         avatarUrl: user.avatar_url || null,
         orgId: user.org_id,
         orgName: user.org_name,
@@ -119,15 +120,15 @@ router.post('/change-password', authenticate, async (req, res) => {
 // PATCH /api/auth/profile
 router.patch('/profile', authenticate, async (req, res) => {
   try {
-    const { first_name, last_name, phone } = req.body;
+    const { first_name, last_name, phone, title } = req.body;
     const updates = Object.fromEntries(
-      Object.entries({ first_name, last_name, phone }).filter(([, v]) => v !== undefined)
+      Object.entries({ first_name, last_name, phone, title }).filter(([, v]) => v !== undefined)
     );
     if (!Object.keys(updates).length) return res.status(400).json({ error: 'No fields to update' });
     const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
     const { rows: [user] } = await db.query(
       `UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE id = $1
-       RETURNING id, email, first_name, last_name, phone, avatar_url`,
+       RETURNING id, email, first_name, last_name, phone, title, avatar_url`,
       [req.user.id, ...Object.values(updates)]
     );
     res.json({ user });
@@ -184,6 +185,7 @@ router.get('/me', authenticate, async (req, res) => {
         firstName: u.first_name,
         lastName: u.last_name,
         phone: u.phone || null,
+        title: u.title || null,
         avatarUrl: u.avatar_url || null,
         orgId: u.org_id,
         orgName: u.org_name,

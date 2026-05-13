@@ -137,7 +137,7 @@ export default function Sidebar() {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-white truncate">{user?.firstName} {user?.lastName}</p>
-            <p className="text-xs text-white/40 truncate">{user?.email}</p>
+            <p className="text-xs text-white/40 truncate">{user?.title || user?.email}</p>
           </div>
           <button
             onClick={handleLogout}

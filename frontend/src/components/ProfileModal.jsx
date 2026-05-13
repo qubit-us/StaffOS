@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { X, Loader2, User, Lock, Eye, EyeOff, Camera, Trash2, Phone } from 'lucide-react';
+import { X, Loader2, User, Lock, Eye, EyeOff, Camera, Trash2, Phone, Briefcase } from 'lucide-react';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore.js';
@@ -12,6 +12,7 @@ export default function ProfileModal({ onClose }) {
     first_name: user?.firstName || '',
     last_name:  user?.lastName  || '',
     phone:      user?.phone     || '',
+    title:      user?.title     || '',
   });
   const [pw, setPw]                   = useState({ current: '', next: '', confirm: '' });
   const [showCurrent, setShowCurrent] = useState(false);
@@ -22,7 +23,7 @@ export default function ProfileModal({ onClose }) {
   const { mutate: saveProfile, isPending: savingProfile } = useMutation({
     mutationFn: () => api.patch('/api/auth/profile', form).then(r => r.data),
     onSuccess: ({ user: u }) => {
-      updateUser({ firstName: u.first_name, lastName: u.last_name, phone: u.phone });
+      updateUser({ firstName: u.first_name, lastName: u.last_name, phone: u.phone, title: u.title });
       toast.success('Profile updated');
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to update profile'),
@@ -153,6 +154,11 @@ export default function ProfileModal({ onClose }) {
               <label className="label flex items-center gap-1.5"><Phone size={12} /> Phone</label>
               <input className="input" placeholder="+1 (555) 000-0000" value={form.phone}
                 onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+            </div>
+            <div className="mt-3">
+              <label className="label flex items-center gap-1.5"><Briefcase size={12} /> Job Title</label>
+              <input className="input" placeholder="e.g. CEO, VP of Recruiting" value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
             </div>
             <button
               onClick={() => saveProfile()}
