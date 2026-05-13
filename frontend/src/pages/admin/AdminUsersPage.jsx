@@ -4,7 +4,7 @@ import api from '../../lib/api.js';
 import toast from 'react-hot-toast';
 import {
   Users, ShieldCheck, CheckCircle2, XCircle,
-  UserPlus, Copy, X, Eye, EyeOff, Pencil, Trash2,
+  UserPlus, Copy, X, Eye, EyeOff, Pencil, Trash2, Plus, Lock, Loader2,
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore.js';
 
@@ -18,7 +18,7 @@ function timeAgo(ts) {
   return new Date(ts).toLocaleDateString();
 }
 
-// ── Invite Modal ────────────────────────────────────────────────
+// ── Invite Modal ─────────────────────────────────────────────────
 function InviteUserModal({ roles, onClose, onSuccess }) {
   const [form, setForm] = useState({ first_name: '', last_name: '', email: '', role_id: '' });
 
@@ -75,13 +75,12 @@ function InviteUserModal({ roles, onClose, onSuccess }) {
   );
 }
 
-// ── Edit Modal ──────────────────────────────────────────────────
+// ── Edit User Modal ──────────────────────────────────────────────
 function EditUserModal({ user, roles, onClose, onSuccess }) {
-  const currentRoleId = user.role_id || '';
   const [form, setForm] = useState({
     first_name: user.first_name,
     last_name:  user.last_name,
-    role_id:    currentRoleId,
+    role_id:    user.role_id || '',
   });
 
   const update = useMutation({
@@ -114,7 +113,6 @@ function EditUserModal({ user, roles, onClose, onSuccess }) {
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Email</label>
             <input disabled value={user.email}
               className="w-full border border-slate-100 rounded-xl px-3 py-2.5 text-sm bg-slate-50 text-slate-400" />
-            <p className="text-[11px] text-slate-400 mt-1">Email cannot be changed.</p>
           </div>
           <div>
             <label className="block text-xs font-semibold text-slate-600 mb-1.5">Role</label>
@@ -137,7 +135,7 @@ function EditUserModal({ user, roles, onClose, onSuccess }) {
   );
 }
 
-// ── Credentials Dialog ──────────────────────────────────────────
+// ── Credentials Dialog ───────────────────────────────────────────
 function CredentialsDialog({ user, tempPassword, onClose }) {
   const [showPw, setShowPw] = useState(false);
   const copy = (text) => { navigator.clipboard.writeText(text); toast.success('Copied'); };
@@ -192,8 +190,108 @@ function CredentialsDialog({ user, tempPassword, onClose }) {
   );
 }
 
-// ── Main Page ───────────────────────────────────────────────────
-export default function AdminUsersPage() {
+// ── Role Modal ───────────────────────────────────────────────────
+function RoleModal({ onClose, editRole = null }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState(editRole?.name || '');
+  const [description, setDescription] = useState(editRole?.description || '');
+  const [selectedIds, setSelectedIds] = useState(new Set(editRole?.permission_ids || []));
+
+  const { data: permsData } = useQuery({
+    queryKey: ['admin-permissions'],
+    queryFn: () => api.get('/api/admin/permissions').then(r => r.data),
+  });
+
+  const toggle = (id) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (data) => editRole
+      ? api.patch(`/api/admin/roles/${editRole.id}`, data).then(r => r.data)
+      : api.post('/api/admin/roles', data).then(r => r.data),
+    onSuccess: () => {
+      toast.success(editRole ? 'Role updated' : 'Role created');
+      qc.invalidateQueries({ queryKey: ['admin-roles'] });
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to save role'),
+  });
+
+  const permissions = permsData?.permissions || [];
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between p-6 border-b border-surface-200">
+          <h2 className="text-lg font-bold text-slate-900">{editRole ? 'Edit Role' : 'Create Role'}</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-100 transition-colors">
+            <X size={18} className="text-slate-500" />
+          </button>
+        </div>
+        <form onSubmit={e => { e.preventDefault(); mutate({ name, description, permission_ids: [...selectedIds] }); }} className="flex flex-col flex-1 overflow-hidden">
+          <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div>
+              <label className="label">Role Name *</label>
+              <input className="input" required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Senior Recruiter" />
+            </div>
+            <div>
+              <label className="label">Description</label>
+              <input className="input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description" />
+            </div>
+            <div>
+              <label className="label mb-2">Permissions</label>
+              {permissions.length === 0 ? (
+                <p className="text-sm text-slate-400">Loading permissions...</p>
+              ) : (
+                <div className="max-h-64 overflow-y-auto border border-surface-200 rounded-xl p-3 space-y-3">
+                  {Object.entries(
+                    permissions.reduce((acc, p) => {
+                      const cat = p.category || 'other';
+                      if (!acc[cat]) acc[cat] = [];
+                      acc[cat].push(p);
+                      return acc;
+                    }, {})
+                  ).map(([category, perms]) => (
+                    <div key={category}>
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 capitalize">{category}</p>
+                      <div className="space-y-1">
+                        {perms.map(p => (
+                          <label key={p.id} className="flex items-center gap-2.5 cursor-pointer hover:bg-surface-50 rounded-lg px-2 py-1.5">
+                            <input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggle(p.id)}
+                              className="rounded border-slate-300 text-indigo-600 shrink-0" />
+                            <div>
+                              <span className="text-sm text-slate-800">{p.description || p.code}</span>
+                              <span className="text-[10px] text-slate-400 font-mono ml-1.5">{p.code}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-slate-400 mt-1">{selectedIds.size} permission{selectedIds.size !== 1 ? 's' : ''} selected</p>
+            </div>
+          </div>
+          <div className="flex gap-3 p-6 border-t border-surface-200">
+            <button type="button" onClick={onClose} className="flex-1 btn-secondary">Cancel</button>
+            <button type="submit" disabled={isPending}
+              className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+              {isPending && <Loader2 size={14} className="animate-spin" />}
+              {isPending ? 'Saving...' : editRole ? 'Save Changes' : 'Create Role'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Users Tab ─────────────────────────────────────────────────────
+function UsersTab() {
   const { user: me } = useAuthStore();
   const qc = useQueryClient();
   const [showInvite, setShowInvite]     = useState(false);
@@ -222,176 +320,101 @@ export default function AdminUsersPage() {
     onSuccess: (data) => {
       setConfirmDelete(null);
       qc.invalidateQueries({ queryKey: ['admin-users'] });
-      if (data.hard_deleted) {
-        toast.success('User permanently removed');
-      } else {
-        toast(data.message, { icon: 'ℹ️', duration: 6000 });
-      }
+      if (data.hard_deleted) toast.success('User permanently removed');
+      else toast(data.message, { icon: 'ℹ️', duration: 6000 });
     },
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove user'),
   });
 
   const users = data?.users || [];
   const roles = rolesData?.roles || [];
-
-  // Build a role_id lookup for each user by matching their role names to role objects
   const roleByName = Object.fromEntries(roles.map(r => [r.name, r.id]));
-  const usersWithRoleId = users.map(u => ({
-    ...u,
-    role_id: u.roles?.[0] ? (roleByName[u.roles[0]] || '') : '',
-  }));
+  const usersWithRoleId = users.map(u => ({ ...u, role_id: u.roles?.[0] ? (roleByName[u.roles[0]] || '') : '' }));
 
   return (
-    <>
-      <div className="space-y-6">
-        {/* Users table */}
-        <div className="card overflow-hidden">
-          <div className="px-5 py-4 border-b border-surface-100 flex items-center gap-2">
-            <Users size={16} className="text-slate-500" />
-            <h3 className="font-semibold text-slate-800">Team Members</h3>
-            <span className="ml-2 text-xs text-slate-400">{users.length} users</span>
-            <button onClick={() => setShowInvite(true)}
-              className="ml-auto flex items-center gap-1.5 text-xs font-semibold bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition-colors">
-              <UserPlus size={13} /> Invite User
-            </button>
-          </div>
-
-          {isLoading ? (
-            <div className="p-10 text-center text-slate-400 text-sm">Loading...</div>
-          ) : (
-            <table className="w-full">
-              <thead className="bg-surface-50 border-b border-surface-100">
-                <tr>
-                  {['Name', 'Email', 'Roles', 'Last Login', 'Status', ''].map(h => (
-                    <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-50">
-                {usersWithRoleId.map(u => (
-                  <tr key={u.id} className="hover:bg-surface-50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
-                          {u.first_name?.[0]}{u.last_name?.[0]}
-                        </div>
-                        <span className="text-sm font-semibold text-slate-800">
-                          {u.first_name} {u.last_name}
-                          {u.id === me?.id && <span className="ml-1.5 text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">You</span>}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-slate-500">{u.email}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {(u.roles || []).map(r => (
-                          <span key={r} className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{r}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(u.last_login_at)}</td>
-                    <td className="px-4 py-3">
-                      {u.is_active
-                        ? <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold"><CheckCircle2 size={13} /> Active</span>
-                        : <span className="flex items-center gap-1 text-xs text-slate-400 font-semibold"><XCircle size={13} /> Inactive</span>}
-                    </td>
-                    <td className="px-4 py-3">
-                      {u.id !== me?.id && (
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => setEditingUser(u)} title="Edit"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors">
-                            <Pencil size={14} />
-                          </button>
-                          <button
-                            onClick={() => toggleActive.mutate({ id: u.id, is_active: !u.is_active })}
-                            title={u.is_active ? 'Deactivate' : 'Activate'}
-                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-                              u.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'
-                            }`}
-                          >
-                            {u.is_active ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button onClick={() => setConfirmDelete(u)} title="Remove user"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-        </div>
-
-        {/* Roles table */}
-        <div className="card overflow-hidden">
-          <div className="px-5 py-4 border-b border-surface-100 flex items-center gap-2">
-            <ShieldCheck size={16} className="text-slate-500" />
-            <h3 className="font-semibold text-slate-800">Roles</h3>
-            <span className="ml-auto text-xs text-slate-400">{roles.length} roles</span>
-          </div>
-          <div className="divide-y divide-surface-50">
-            {roles.map(role => (
-              <div key={role.id} className="px-5 py-4 hover:bg-surface-50 transition-colors">
-                <div className="flex items-start gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-semibold text-slate-800">{role.name}</p>
-                      <span className="text-xs text-slate-400">{role.user_count} user{role.user_count !== 1 ? 's' : ''}</span>
-                    </div>
-                    {role.description && <p className="text-xs text-slate-500 mb-2">{role.description}</p>}
-                    <div className="flex flex-wrap gap-1">
-                      {(role.permissions || []).map(p => (
-                        <span key={p} className="text-[10px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">{p}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-500">{users.length} team member{users.length !== 1 ? 's' : ''}</p>
+        <button onClick={() => setShowInvite(true)}
+          className="flex items-center gap-1.5 text-sm font-semibold bg-indigo-600 text-white px-4 py-2 rounded-xl hover:bg-indigo-700 transition-colors">
+          <UserPlus size={15} /> Invite User
+        </button>
       </div>
 
-      {/* Modals */}
+      <div className="card overflow-hidden">
+        {isLoading ? (
+          <div className="p-10 text-center text-slate-400 text-sm">Loading...</div>
+        ) : (
+          <table className="w-full">
+            <thead className="bg-surface-50 border-b border-surface-100">
+              <tr>
+                {['Name', 'Email', 'Roles', 'Last Login', 'Status', ''].map(h => (
+                  <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-50">
+              {usersWithRoleId.map(u => (
+                <tr key={u.id} className="hover:bg-surface-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-br from-indigo-400 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0">
+                        {u.first_name?.[0]}{u.last_name?.[0]}
+                      </div>
+                      <span className="text-sm font-semibold text-slate-800">
+                        {u.first_name} {u.last_name}
+                        {u.id === me?.id && <span className="ml-1.5 text-[10px] text-indigo-600 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">You</span>}
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-500">{u.email}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-wrap gap-1">
+                      {(u.roles || []).map(r => (
+                        <span key={r} className="text-[11px] font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">{r}</span>
+                      ))}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-400">{timeAgo(u.last_login_at)}</td>
+                  <td className="px-4 py-3">
+                    {u.is_active
+                      ? <span className="flex items-center gap-1 text-xs text-emerald-600 font-semibold"><CheckCircle2 size={13} /> Active</span>
+                      : <span className="flex items-center gap-1 text-xs text-slate-400 font-semibold"><XCircle size={13} /> Inactive</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    {u.id !== me?.id && (
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => setEditingUser(u)} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Pencil size={14} /></button>
+                        <button onClick={() => toggleActive.mutate({ id: u.id, is_active: !u.is_active })}
+                          className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${u.is_active ? 'text-amber-600 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}>
+                          {u.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onClick={() => setConfirmDelete(u)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
       {showInvite && (
-        <InviteUserModal
-          roles={roles}
-          onClose={() => setShowInvite(false)}
-          onSuccess={(data) => {
-            setShowInvite(false);
-            setCredentials({ user: data.user, tempPassword: data.temp_password });
-            qc.invalidateQueries({ queryKey: ['admin-users'] });
-          }}
-        />
+        <InviteUserModal roles={roles} onClose={() => setShowInvite(false)}
+          onSuccess={(data) => { setShowInvite(false); setCredentials({ user: data.user, tempPassword: data.temp_password }); qc.invalidateQueries({ queryKey: ['admin-users'] }); }} />
       )}
-
       {editingUser && (
-        <EditUserModal
-          user={editingUser}
-          roles={roles}
-          onClose={() => setEditingUser(null)}
-          onSuccess={() => { setEditingUser(null); qc.invalidateQueries({ queryKey: ['admin-users'] }); }}
-        />
+        <EditUserModal user={editingUser} roles={roles} onClose={() => setEditingUser(null)}
+          onSuccess={() => { setEditingUser(null); qc.invalidateQueries({ queryKey: ['admin-users'] }); }} />
       )}
-
-      {credentials && (
-        <CredentialsDialog
-          user={credentials.user}
-          tempPassword={credentials.tempPassword}
-          onClose={() => setCredentials(null)}
-        />
-      )}
-
-      {/* Delete confirmation */}
+      {credentials && <CredentialsDialog user={credentials.user} tempPassword={credentials.tempPassword} onClose={() => setCredentials(null)} />}
       {confirmDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6">
             <h3 className="text-lg font-bold text-slate-900 mb-2">Remove User?</h3>
             <p className="text-sm text-slate-500 mb-6">
-              This will permanently remove <strong>{confirmDelete.first_name} {confirmDelete.last_name}</strong> ({confirmDelete.email}) from your organization. This cannot be undone.
+              This will permanently remove <strong>{confirmDelete.first_name} {confirmDelete.last_name}</strong> ({confirmDelete.email}) from your organization.
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setConfirmDelete(null)} className="px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
@@ -403,6 +426,138 @@ export default function AdminUsersPage() {
           </div>
         </div>
       )}
-    </>
+    </div>
+  );
+}
+
+// ── Roles Tab ─────────────────────────────────────────────────────
+function RolesTab() {
+  const qc = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const { data: rolesData, isLoading } = useQuery({
+    queryKey: ['admin-roles'],
+    queryFn: () => api.get('/api/admin/roles').then(r => r.data),
+  });
+
+  const { mutate: deleteRole } = useMutation({
+    mutationFn: (id) => api.delete(`/api/admin/roles/${id}`).then(r => r.data),
+    onSuccess: () => { toast.success('Role deleted'); qc.invalidateQueries({ queryKey: ['admin-roles'] }); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to delete role'),
+  });
+
+  const roles = rolesData?.roles || [];
+  const customRoles = roles.filter(r => !r.is_default);
+  const systemRoles = roles.filter(r => r.is_default);
+
+  return (
+    <div className="space-y-5 max-w-2xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">Custom Roles</h3>
+          <p className="text-xs text-slate-400 mt-0.5">Roles you've created for your team</p>
+        </div>
+        <button onClick={() => setShowCreate(true)}
+          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">
+          <Plus size={15} /> New Role
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="p-8 text-center text-slate-400 text-sm">Loading roles...</div>
+      ) : customRoles.length === 0 ? (
+        <div className="card p-8 text-center">
+          <ShieldCheck size={28} className="text-slate-200 mx-auto mb-2" />
+          <p className="text-slate-500 text-sm font-medium">No custom roles yet</p>
+          <p className="text-slate-400 text-xs mt-1">Create roles tailored to your team's needs</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {customRoles.map(role => (
+            <div key={role.id} className="card p-4 flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-900">{role.name}</p>
+                {role.description && <p className="text-xs text-slate-400 mt-0.5">{role.description}</p>}
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {(role.permissions || []).slice(0, 5).map(p => (
+                    <span key={p} className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded">
+                      {p.replace(/_/g, ' ').toLowerCase().replace(/^\w/, c => c.toUpperCase())}
+                    </span>
+                  ))}
+                  {(role.permissions?.length || 0) > 5 && (
+                    <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">+{role.permissions.length - 5} more</span>
+                  )}
+                  {(!role.permissions || role.permissions.length === 0) && (
+                    <span className="text-xs text-slate-400 italic">No permissions</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => setEditing(role)} className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Pencil size={14} /></button>
+                <button onClick={() => { if (confirm(`Delete role "${role.name}"?`)) deleteRole(role.id); }}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"><Trash2 size={14} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="border-t border-surface-200 pt-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Lock size={13} className="text-slate-400" />
+          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">System Roles</h3>
+        </div>
+        <div className="space-y-2">
+          {systemRoles.map(role => (
+            <div key={role.id} className="card p-4 flex items-start gap-4 opacity-70">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-slate-700">{role.name}</p>
+                  <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-medium">System</span>
+                </div>
+                {role.description && <p className="text-xs text-slate-400 mt-0.5">{role.description}</p>}
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {(role.permissions || []).map(p => (
+                    <span key={p} className="text-[10px] font-mono bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded">{p}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {showCreate && <RoleModal onClose={() => setShowCreate(false)} />}
+      {editing && <RoleModal onClose={() => setEditing(null)} editRole={editing} />}
+    </div>
+  );
+}
+
+// ── Main Page ──────────────────────────────────────────────────────
+const TABS = [
+  { id: 'users', label: 'Users', icon: Users },
+  { id: 'roles', label: 'Roles', icon: ShieldCheck },
+];
+
+export default function AdminUsersPage() {
+  const [tab, setTab] = useState('users');
+
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-1 border-b border-surface-200">
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              tab === id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+            }`}>
+            <Icon size={15} />{label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'users' && <UsersTab />}
+      {tab === 'roles' && <RolesTab />}
+    </div>
   );
 }

@@ -166,12 +166,22 @@ router.post('/users', requirePermission('MANAGE_USERS'), async (req, res) => {
 
 // ── ROLES ──────────────────────────────────────────────────────
 
+const AGENCY_PERMISSIONS = [
+  'VIEW_JOBS','CREATE_JOB','EDIT_JOB','DELETE_JOB',
+  'VIEW_CANDIDATES','SCREEN_CANDIDATE','VALIDATE_CANDIDATE','UNLOCK_CANDIDATE','UPLOAD_RESUME',
+  'VIEW_PIPELINE','MANAGE_PIPELINE','SUBMIT_CANDIDATE','SUBMIT_TO_CLIENT','APPROVE_SUBMISSION',
+  'VIEW_MATCHES','RUN_MATCHING','VIEW_RATES','MANAGE_RATES',
+  'MANAGE_CLIENTS','MANAGE_VENDORS','VIEW_ANALYTICS','VIEW_NOTIFICATIONS','VIEW_SUBMISSIONS',
+  'MANAGE_USERS','MANAGE_ROLES','MANAGE_SETTINGS','MANAGE_WEBHOOKS',
+];
+
 // GET /api/admin/roles
 router.get('/roles', requirePermission('MANAGE_ROLES'), async (req, res) => {
   try {
     const { rows } = await db.query(
       `SELECT r.id, r.name, r.description, r.is_default, r.created_at,
-              array_agg(p.code ORDER BY p.code) FILTER (WHERE p.code IS NOT NULL) as permissions,
+              array_agg(DISTINCT p.code) FILTER (WHERE p.code IS NOT NULL) as permissions,
+              array_agg(DISTINCT rp.permission_id) FILTER (WHERE rp.permission_id IS NOT NULL) as permission_ids,
               COUNT(DISTINCT ur.user_id) as user_count
        FROM roles r
        LEFT JOIN role_permissions rp ON rp.role_id = r.id
@@ -183,6 +193,96 @@ router.get('/roles', requirePermission('MANAGE_ROLES'), async (req, res) => {
       [req.orgId]
     );
     res.json({ roles: rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/admin/roles
+router.post('/roles', requirePermission('MANAGE_ROLES'), async (req, res) => {
+  try {
+    const { name, description, permission_ids = [] } = req.body;
+    if (!name?.trim()) return res.status(400).json({ error: 'Role name is required' });
+    const { rows: validPerms } = await db.query(
+      `SELECT id FROM permissions WHERE id = ANY($1) AND code = ANY($2)`,
+      [permission_ids, AGENCY_PERMISSIONS]
+    );
+    const validIds = validPerms.map(p => p.id);
+    const { rows: [role] } = await db.query(
+      `INSERT INTO roles (org_id, name, description, is_default) VALUES ($1, $2, $3, false) RETURNING *`,
+      [req.orgId, name.trim(), description?.trim() || null]
+    );
+    if (validIds.length) {
+      await db.query(
+        `INSERT INTO role_permissions (role_id, permission_id) SELECT $1, UNNEST($2::uuid[])`,
+        [role.id, validIds]
+      );
+    }
+    res.status(201).json({ ...role, permission_ids: validIds });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A role with this name already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PATCH /api/admin/roles/:id
+router.patch('/roles/:id', requirePermission('MANAGE_ROLES'), async (req, res) => {
+  try {
+    const { rows: [role] } = await db.query(
+      `SELECT * FROM roles WHERE id = $1 AND org_id = $2`, [req.params.id, req.orgId]
+    );
+    if (!role) return res.status(404).json({ error: 'Role not found' });
+    if (role.is_default) return res.status(403).json({ error: 'System roles cannot be modified' });
+    const { name, description, permission_ids } = req.body;
+    if (name !== undefined || description !== undefined) {
+      const updates = Object.fromEntries(
+        Object.entries({ name: name?.trim(), description: description?.trim() }).filter(([, v]) => v !== undefined)
+      );
+      if (Object.keys(updates).length) {
+        const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
+        await db.query(`UPDATE roles SET ${sets.join(', ')} WHERE id = $1`, [role.id, ...Object.values(updates)]);
+      }
+    }
+    if (permission_ids !== undefined) {
+      const { rows: validPerms } = await db.query(
+        `SELECT id FROM permissions WHERE id = ANY($1) AND code = ANY($2)`,
+        [permission_ids, AGENCY_PERMISSIONS]
+      );
+      const validIds = validPerms.map(p => p.id);
+      await db.query(`DELETE FROM role_permissions WHERE role_id = $1`, [role.id]);
+      if (validIds.length) {
+        await db.query(
+          `INSERT INTO role_permissions (role_id, permission_id) SELECT $1, UNNEST($2::uuid[])`,
+          [role.id, validIds]
+        );
+      }
+    }
+    const { rows: [updated] } = await db.query(
+      `SELECT r.*, array_agg(DISTINCT rp.permission_id) FILTER (WHERE rp.permission_id IS NOT NULL) as permission_ids
+       FROM roles r LEFT JOIN role_permissions rp ON rp.role_id = r.id
+       WHERE r.id = $1 GROUP BY r.id`, [role.id]
+    );
+    res.json(updated);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'A role with this name already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/admin/roles/:id
+router.delete('/roles/:id', requirePermission('MANAGE_ROLES'), async (req, res) => {
+  try {
+    const { rows: [role] } = await db.query(
+      `SELECT * FROM roles WHERE id = $1 AND org_id = $2`, [req.params.id, req.orgId]
+    );
+    if (!role) return res.status(404).json({ error: 'Role not found' });
+    if (role.is_default) return res.status(403).json({ error: 'System roles cannot be deleted' });
+    const { rows: [{ count }] } = await db.query(
+      `SELECT COUNT(*) FROM user_roles WHERE role_id = $1`, [role.id]
+    );
+    if (parseInt(count) > 0) return res.status(409).json({ error: `This role is assigned to ${count} user(s). Reassign them first.` });
+    await db.query(`DELETE FROM roles WHERE id = $1`, [role.id]);
+    res.json({ message: 'Role deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
