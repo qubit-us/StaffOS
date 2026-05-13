@@ -206,7 +206,7 @@ export default function ProfileModal({ onClose }) {
               <button
                 onClick={handlePasswordSubmit}
                 disabled={changingPw}
-                className="flex items-center gap-2 border border-slate-200 hover:bg-surface-50 disabled:opacity-60 text-slate-700 text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors"
               >
                 {changingPw && <Loader2 size={14} className="animate-spin" />}
                 {changingPw ? 'Updating...' : 'Update Password'}
