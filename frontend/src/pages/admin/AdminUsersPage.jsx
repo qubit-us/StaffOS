@@ -242,7 +242,16 @@ function RoleModal({ onClose, editRole = null }) {
               <input className="input" value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description" />
             </div>
             <div>
-              <label className="label mb-2">Permissions</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="label">Permissions</label>
+                {permissions.length > 0 && (
+                  <button type="button"
+                    onClick={() => setSelectedIds(selectedIds.size === permissions.length ? new Set() : new Set(permissions.map(p => p.id)))}
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors">
+                    {selectedIds.size === permissions.length ? 'Deselect All' : 'Select All'}
+                  </button>
+                )}
+              </div>
               {permissions.length === 0 ? (
                 <p className="text-sm text-slate-400">Loading permissions...</p>
               ) : (
