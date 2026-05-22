@@ -4,10 +4,14 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import path from 'path';
 import multer from 'multer';
+import { Resend } from 'resend';
 import { OAuth2Client } from 'google-auth-library';
 import { db } from '../config/database.js';
 import { authenticate } from '../middleware/auth.js';
 import { logAudit } from '../utils/audit.js';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
+const EMAIL_FROM = process.env.EMAIL_FROM || 'noreply@staffos360.com';
 import { uploadToR2 } from '../utils/r2.js';
 
 const uploadAvatar = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -310,23 +314,20 @@ router.post('/forgot-password', async (req, res) => {
     const frontendUrl = process.env.FRONTEND_URL || 'https://staffos.vercel.app';
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
-    if (process.env.SMTP_HOST || process.env.SMTP_USER) {
-      const nodemailer = await import('nodemailer');
-      const transporter = nodemailer.default.createTransport({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-      });
-      await transporter.sendMail({
-        from: process.env.FROM_EMAIL || process.env.SMTP_USER,
-        to: user.email,
-        subject: 'Reset your StaffOS password',
-        html: `<p>Hi ${user.first_name},</p><p>Click the link below to reset your password. This link expires in 1 hour.</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If you didn't request this, you can safely ignore this email.</p>`,
-      });
-    } else {
-      console.log(`[forgot-password] Reset URL for ${user.email}: ${resetUrl}`);
-    }
+    await resend.emails.send({
+      from: EMAIL_FROM,
+      to: user.email,
+      subject: 'Reset your StaffOS password',
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
+          <h2 style="color:#4f46e5;">Reset your password</h2>
+          <p>Hi ${user.first_name},</p>
+          <p>Click the button below to reset your StaffOS password. This link expires in <strong>1 hour</strong>.</p>
+          <a href="${resetUrl}" style="display:inline-block;margin:16px 0;padding:12px 24px;background:#4f46e5;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Reset Password</a>
+          <p style="color:#64748b;font-size:13px;">If you didn't request this, you can safely ignore this email.</p>
+        </div>
+      `,
+    });
 
     res.json({ message: 'If that email exists, a reset link has been sent.' });
   } catch (err) {
