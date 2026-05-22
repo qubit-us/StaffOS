@@ -489,13 +489,12 @@ export default function JobsPage() {
                       <Link to={`/jobs/${job.id}`} className="font-semibold text-slate-900 hover:text-brand-600 transition-colors block truncate max-w-[240px]">
                         {job.title}
                       </Link>
-                      {(job.client_name || job.remote_allowed || job.is_public) && (
-                        <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
-                          {job.client_name && <span>{job.client_name}</span>}
-                          {job.remote_allowed && <span className="flex items-center gap-0.5 text-teal-600"><Wifi size={10} /> Remote</span>}
-                          {job.is_public && <span className="text-brand-500 font-medium">Public</span>}
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
+                        {job.client_name && <span>{job.client_name}</span>}
+                        {job.created_by_name && <span className="text-slate-400">by {job.created_by_name}</span>}
+                        {job.remote_allowed && <span className="flex items-center gap-0.5 text-teal-600"><Wifi size={10} /> Remote</span>}
+                        {job.is_public && <span className="text-brand-500 font-medium">Public</span>}
+                      </div>
                     </td>
 
                     {/* Status */}

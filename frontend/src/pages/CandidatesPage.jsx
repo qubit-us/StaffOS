@@ -252,7 +252,11 @@ export default function CandidatesPage() {
 
                     {/* Source */}
                     <td className="px-3 py-3">
-                      {c.upload_source ? (
+                      {c.vendor_name ? (
+                        <span className={clsx('badge text-xs', sourceColors['vendor'])}>
+                          {c.vendor_name}
+                        </span>
+                      ) : c.upload_source ? (
                         <span className={clsx('badge text-xs', sourceColors[c.upload_source] || 'bg-slate-100 text-slate-600')}>
                           {c.upload_source}
                         </span>
