@@ -18,6 +18,7 @@ import adminRoutes from './routes/admin.js';
 import auditLogRoutes from './routes/auditLogs.js';
 import orgAdminRoutes from './routes/orgAdmin.js';
 import todoRoutes from './routes/todos.js';
+import employerRoutes from './routes/employers.js';
 import { mkdirSync } from 'fs';
 
 // Ensure upload dirs exist
@@ -65,6 +66,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/org-admin', orgAdminRoutes);
 app.use('/api/todos', todoRoutes);
+app.use('/api/employers', employerRoutes);
 
 // Health
 app.get('/health', (_, res) => res.json({ status: 'ok', version: '1.0.0', timestamp: new Date().toISOString() }));

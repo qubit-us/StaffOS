@@ -54,12 +54,16 @@ router.get('/', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
        c.visa_status, c.expected_rate_min, c.expected_rate_max, c.availability_date,
        c.upload_source, c.vendor_org_id, c.created_at, c.profile_completeness,
        c.industry_experience, c.is_active, c.priority,
+       c.employment_type, c.employer_id, c.employer_name_raw,
        c.first_name, c.last_name,
        v.name as vendor_name,
-       COALESCE(v.name, o.name) as source_org_name
+       COALESCE(v.name, o.name) as source_org_name,
+       e.name as employer_name, e.contact_name as employer_contact_name,
+       e.contact_email as employer_contact_email, e.contact_phone as employer_contact_phone
      FROM candidates c
      LEFT JOIN organizations v ON v.id = c.vendor_org_id
      LEFT JOIN organizations o ON o.id = c.org_id
+     LEFT JOIN employers e ON e.id = c.employer_id
      WHERE ${where}
      ORDER BY c.created_at DESC
      LIMIT $${idx++} OFFSET $${idx}`,
@@ -76,10 +80,14 @@ router.get('/', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
 // GET /api/candidates/:id
 router.get('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
   const { rows } = await db.query(
-    `SELECT c.*, v.name as vendor_name, u.first_name || ' ' || u.last_name as submitted_by_name
+    `SELECT c.*, v.name as vendor_name, u.first_name || ' ' || u.last_name as submitted_by_name,
+       e.name as employer_name, e.ein as employer_ein,
+       e.contact_name as employer_contact_name, e.contact_email as employer_contact_email,
+       e.contact_phone as employer_contact_phone, e.notes as employer_notes
      FROM candidates c
      LEFT JOIN organizations v ON v.id = c.vendor_org_id
      LEFT JOIN users u ON u.id = c.submitted_by_user_id
+     LEFT JOIN employers e ON e.id = c.employer_id
      WHERE c.id = $1 AND c.org_id = $2`,
     [req.params.id, req.orgId]
   );
@@ -142,7 +150,7 @@ router.patch('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
     'visa_status','work_authorization','relocation_preference','remote_preference',
     'availability_date','availability_type','expected_rate_min','expected_rate_max',
     'industry_experience','certifications','education','companies_worked','languages',
-    'upload_source','priority','is_active',
+    'upload_source','priority','employment_type','employer_id','employer_name_raw','is_active',
   ];
 
   const updates = {};

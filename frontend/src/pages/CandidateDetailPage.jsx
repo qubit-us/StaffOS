@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
@@ -31,6 +31,79 @@ const PRIORITY_CONFIG = {
   low:    { label: 'Low',    color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
 };
 
+function EmployerCombobox({ value, onChange }) {
+  const [query, setQuery] = useState(value?.name || '');
+  const [results, setResults] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const ref = useRef();
+
+  useEffect(() => {
+    if (!query.trim()) { setResults([]); return; }
+    const t = setTimeout(() => {
+      api.get(`/api/employers?search=${encodeURIComponent(query)}`).then(r => setResults(r.data));
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const select = employer => {
+    onChange(employer);
+    setQuery(employer.name);
+    setOpen(false);
+  };
+
+  const createNew = async () => {
+    if (!query.trim()) return;
+    setCreating(true);
+    try {
+      const { data } = await api.post('/api/employers', { name: query.trim() });
+      select(data);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const exactMatch = results.some(r => r.name.toLowerCase() === query.trim().toLowerCase());
+
+  return (
+    <div className="relative" ref={ref}>
+      <input
+        className="input"
+        placeholder="Search or create employer..."
+        value={query}
+        onChange={e => { setQuery(e.target.value); setOpen(true); onChange(null); }}
+        onFocus={() => setOpen(true)}
+      />
+      {open && query.trim() && (
+        <div className="absolute z-20 w-full mt-1 bg-white rounded-xl border border-surface-200 shadow-lg overflow-hidden">
+          {results.map(emp => (
+            <button key={emp.id} type="button" onMouseDown={() => select(emp)}
+              className="w-full text-left px-4 py-2.5 text-sm hover:bg-surface-50 text-slate-800">
+              {emp.name}
+              {emp.contact_name && <span className="text-slate-400 ml-2 text-xs">· {emp.contact_name}</span>}
+            </button>
+          ))}
+          {!exactMatch && (
+            <button type="button" onMouseDown={createNew} disabled={creating}
+              className="w-full text-left px-4 py-2.5 text-sm text-brand-600 hover:bg-brand-50 font-medium flex items-center gap-2">
+              {creating ? <Loader2 size={13} className="animate-spin" /> : '+'} Create "{query.trim()}"
+            </button>
+          )}
+          {results.length === 0 && exactMatch === false && !query.trim() && (
+            <p className="px-4 py-2.5 text-sm text-slate-400">No employers found</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const EDIT_TABS = [
   { id: 'profile',  label: 'Profile' },
   { id: 'employer', label: 'Employer' },
@@ -60,6 +133,9 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
     industry_experience:   (candidate.industry_experience || []).join(', '),
     upload_source:         candidate.upload_source || 'recruiter',
     priority:              candidate.priority || '',
+    employment_type:       candidate.employment_type || '',
+    employer_id:           candidate.employer_id || null,
+    employer_name:         candidate.employer_name || '',
   });
   const [saving, setSaving] = useState(false);
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -77,6 +153,8 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
         expected_rate_max:   form.expected_rate_max ? parseFloat(form.expected_rate_max) : null,
         availability_date:   form.availability_date || null,
         priority:            form.priority || null,
+        employment_type:     form.employment_type || null,
+        employer_id:         form.employer_id || null,
       });
       onSaved(data);
       onClose();
@@ -163,6 +241,54 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
                     <option value="linkedin">LinkedIn</option>
                   </select>
                 </div>
+
+                {/* Employment type */}
+                <div>
+                  <label className="label">Employment Type</label>
+                  <div className="flex gap-2 mt-1">
+                    {[
+                      { value: 'w2',   label: 'W2',   desc: 'Direct employee' },
+                      { value: 'c2c',  label: 'C2C',  desc: 'Corp-to-corp' },
+                      { value: '1099', label: '1099', desc: 'Independent' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, employment_type: f.employment_type === opt.value ? '' : opt.value }))}
+                        className={clsx(
+                          'flex-1 flex flex-col items-center py-2.5 px-3 rounded-xl border-2 text-center transition-all',
+                          form.employment_type === opt.value
+                            ? 'border-brand-500 bg-brand-50 text-brand-700'
+                            : 'border-surface-200 hover:border-slate-300 text-slate-600'
+                        )}
+                      >
+                        <span className="font-bold text-sm">{opt.label}</span>
+                        <span className="text-[11px] text-slate-400 mt-0.5">{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* H1B employer — only show if not W2 */}
+                {form.employment_type && form.employment_type !== 'w2' && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                    <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">
+                      {form.employment_type.toUpperCase()} Employer Details
+                    </p>
+                    <div>
+                      <label className="label">Employer Company</label>
+                      <EmployerCombobox
+                        value={form.employer_id ? { id: form.employer_id, name: form.employer_name } : null}
+                        onChange={emp => setForm(f => ({
+                          ...f,
+                          employer_id:   emp?.id || null,
+                          employer_name: emp?.name || '',
+                        }))}
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="label">Minimum Rate ($/hr)</label>
@@ -653,8 +779,43 @@ export default function CandidateDetailPage() {
                     <DetailLine label="Current title" value={candidate.title || 'N/A'} />
                     <DetailLine label="Years of experience" value={candidate.years_of_experience ? `${candidate.years_of_experience} years` : 'N/A'} />
                     <DetailLine label="Availability" value={candidate.availability_date ? formatDate(candidate.availability_date) : 'N/A'} />
+                    <div className="sm:col-span-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Employment Type</p>
+                      {candidate.employment_type ? (
+                        <span className={clsx('badge mt-1', {
+                          'bg-emerald-100 text-emerald-700': candidate.employment_type === 'w2',
+                          'bg-amber-100 text-amber-700':    candidate.employment_type === 'c2c',
+                          'bg-blue-100 text-blue-700':      candidate.employment_type === '1099',
+                        })}>
+                          {candidate.employment_type.toUpperCase()}
+                          {candidate.employment_type === 'w2' && ' — Direct Employee'}
+                          {candidate.employment_type === 'c2c' && ' — Corp-to-Corp'}
+                          {candidate.employment_type === '1099' && ' — Independent'}
+                        </span>
+                      ) : <p className="text-sm text-slate-400 mt-0.5">Not specified</p>}
+                    </div>
                   </div>
                 </Section>
+
+                {candidate.employment_type && candidate.employment_type !== 'w2' && (
+                  <Section title={`${candidate.employment_type.toUpperCase()} Employer`} icon={Building2}>
+                    {candidate.employer_name ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-50 border border-amber-200">
+                          <Building2 size={18} className="text-amber-600 shrink-0" />
+                          <p className="font-semibold text-slate-800">{candidate.employer_name}</p>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <DetailLine label="Contact" value={candidate.employer_contact_name || 'N/A'} />
+                          <DetailLine label="Email" value={candidate.employer_contact_email || 'N/A'} />
+                          <DetailLine label="Phone" value={candidate.employer_contact_phone || 'N/A'} />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-slate-400">No employer assigned. Edit the profile to add one.</p>
+                    )}
+                  </Section>
+                )}
 
                 <Section title="Work Experience" icon={Briefcase}>
                   <div className="space-y-4">
