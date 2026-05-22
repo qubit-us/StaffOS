@@ -140,7 +140,7 @@ router.patch('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
     'visa_status','work_authorization','relocation_preference','remote_preference',
     'availability_date','availability_type','expected_rate_min','expected_rate_max',
     'industry_experience','certifications','education','companies_worked','languages',
-    'is_active',
+    'upload_source','priority','is_active',
   ];
 
   const updates = {};

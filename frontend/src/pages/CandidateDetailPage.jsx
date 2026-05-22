@@ -22,28 +22,44 @@ const DETAIL_TABS = [
   { id: 'summary', label: 'Summary' },
   { id: 'personal', label: 'Personal details' },
   { id: 'employer', label: 'Employer details' },
+  { id: 'priority', label: 'Priority' },
+];
+
+const PRIORITY_CONFIG = {
+  high:   { label: 'High',   color: 'bg-red-100 text-red-700',    dot: 'bg-red-500' },
+  medium: { label: 'Medium', color: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' },
+  low:    { label: 'Low',    color: 'bg-slate-100 text-slate-600', dot: 'bg-slate-400' },
+};
+
+const EDIT_TABS = [
+  { id: 'profile',  label: 'Profile' },
+  { id: 'employer', label: 'Employer' },
+  { id: 'priority', label: 'Priority' },
 ];
 
 function EditCandidateModal({ candidate, onClose, onSaved }) {
+  const [activeEditTab, setActiveEditTab] = useState('profile');
   const [form, setForm] = useState({
-    first_name:           candidate.first_name || '',
-    last_name:            candidate.last_name || '',
-    email:                candidate.email || '',
-    phone:                candidate.phone || '',
-    linkedin_url:         candidate.linkedin_url || '',
-    title:                candidate.title || '',
-    summary:              candidate.summary || '',
-    skills:               (candidate.skills || []).join(', '),
-    years_of_experience:  candidate.years_of_experience || '',
-    location_city:        candidate.location_city || '',
-    location_state:       candidate.location_state || '',
-    visa_status:          candidate.visa_status || 'unknown',
+    first_name:            candidate.first_name || '',
+    last_name:             candidate.last_name || '',
+    email:                 candidate.email || '',
+    phone:                 candidate.phone || '',
+    linkedin_url:          candidate.linkedin_url || '',
+    title:                 candidate.title || '',
+    summary:               candidate.summary || '',
+    skills:                (candidate.skills || []).join(', '),
+    years_of_experience:   candidate.years_of_experience || '',
+    location_city:         candidate.location_city || '',
+    location_state:        candidate.location_state || '',
+    visa_status:           candidate.visa_status || 'unknown',
     relocation_preference: candidate.relocation_preference || 'open',
-    remote_preference:    candidate.remote_preference || '',
-    expected_rate_min:    candidate.expected_rate_min || '',
-    expected_rate_max:    candidate.expected_rate_max || '',
-    availability_date:    candidate.availability_date ? candidate.availability_date.split('T')[0] : '',
-    industry_experience:  (candidate.industry_experience || []).join(', '),
+    remote_preference:     candidate.remote_preference || '',
+    expected_rate_min:     candidate.expected_rate_min || '',
+    expected_rate_max:     candidate.expected_rate_max || '',
+    availability_date:     candidate.availability_date ? candidate.availability_date.split('T')[0] : '',
+    industry_experience:   (candidate.industry_experience || []).join(', '),
+    upload_source:         candidate.upload_source || 'recruiter',
+    priority:              candidate.priority || '',
   });
   const [saving, setSaving] = useState(false);
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
@@ -60,6 +76,7 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
         expected_rate_min:   form.expected_rate_min ? parseFloat(form.expected_rate_min) : null,
         expected_rate_max:   form.expected_rate_max ? parseFloat(form.expected_rate_max) : null,
         availability_date:   form.availability_date || null,
+        priority:            form.priority || null,
       });
       onSaved(data);
       onClose();
@@ -74,71 +91,167 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="px-6 py-5 border-b border-surface-100 flex items-center justify-between sticky top-0 bg-white z-10">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-surface-100 flex items-center justify-between shrink-0">
           <h2 className="text-lg font-bold text-slate-900">Edit Candidate Profile</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 text-slate-400"><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">First Name</label><input className="input" value={form.first_name} onChange={set('first_name')} /></div>
-            <div><label className="label">Last Name</label><input className="input" value={form.last_name} onChange={set('last_name')} /></div>
+
+        {/* Edit tabs */}
+        <div className="flex items-end gap-1 border-b border-surface-100 px-6 shrink-0">
+          {EDIT_TABS.map(tab => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveEditTab(tab.id)}
+              className={clsx(
+                'px-4 py-2.5 text-sm font-semibold border-b-2 -mb-px transition-colors',
+                activeEditTab === tab.id
+                  ? 'border-brand-600 text-brand-600'
+                  : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Scrollable body */}
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
+          <div className="overflow-y-auto flex-1 p-6 space-y-4">
+
+            {activeEditTab === 'profile' && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="label">First Name</label><input className="input" value={form.first_name} onChange={set('first_name')} /></div>
+                  <div><label className="label">Last Name</label><input className="input" value={form.last_name} onChange={set('last_name')} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="label">Email</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
+                  <div><label className="label">Phone</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
+                </div>
+                <div><label className="label">LinkedIn URL</label><input className="input" value={form.linkedin_url} onChange={set('linkedin_url')} /></div>
+                <div><label className="label">Current Title</label><input className="input" value={form.title} onChange={set('title')} /></div>
+                <div><label className="label">Professional Summary</label><textarea className="input min-h-[80px] resize-none" value={form.summary} onChange={set('summary')} /></div>
+                <div><label className="label">Skills (comma-separated)</label><input className="input" value={form.skills} onChange={set('skills')} /></div>
+                <div><label className="label">Industries (comma-separated)</label><input className="input" value={form.industry_experience} onChange={set('industry_experience')} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="label">Years of Experience</label><input className="input" type="number" step="0.5" value={form.years_of_experience} onChange={set('years_of_experience')} /></div>
+                  <div>
+                    <label className="label">Visa / Work Auth</label>
+                    <select className="input" value={form.visa_status} onChange={set('visa_status')}>
+                      {VISA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="label">City</label><input className="input" value={form.location_city} onChange={set('location_city')} /></div>
+                  <div><label className="label">State</label><input className="input" value={form.location_state} onChange={set('location_state')} /></div>
+                </div>
+              </>
+            )}
+
+            {activeEditTab === 'employer' && (
+              <>
+                <div>
+                  <label className="label">Upload Source</label>
+                  <select className="input" value={form.upload_source} onChange={set('upload_source')}>
+                    <option value="recruiter">Recruiter</option>
+                    <option value="vendor">Vendor</option>
+                    <option value="direct">Direct</option>
+                    <option value="linkedin">LinkedIn</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Minimum Rate ($/hr)</label>
+                    <p className="text-xs text-slate-400 mb-1">Won't accept below this</p>
+                    <input className="input" type="number" value={form.expected_rate_min} onChange={set('expected_rate_min')} />
+                  </div>
+                  <div>
+                    <label className="label">Target Rate ($/hr)</label>
+                    <p className="text-xs text-slate-400 mb-1">Ideal ask / negotiation ceiling</p>
+                    <input className="input" type="number" value={form.expected_rate_max} onChange={set('expected_rate_max')} />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="label">Relocation</label>
+                    <select className="input" value={form.relocation_preference} onChange={set('relocation_preference')}>
+                      <option value="willing">Willing to Relocate</option>
+                      <option value="not_willing">Not Willing</option>
+                      <option value="open">Open</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="label">Remote Preference</label>
+                    <select className="input" value={form.remote_preference} onChange={set('remote_preference')}>
+                      <option value="">No Preference</option>
+                      <option value="remote_only">Remote Only</option>
+                      <option value="hybrid">Hybrid</option>
+                      <option value="onsite">On-site</option>
+                    </select>
+                  </div>
+                </div>
+                <div><label className="label">Availability Date</label><input className="input" type="date" value={form.availability_date} onChange={set('availability_date')} /></div>
+                <div className="rounded-xl bg-surface-50 border border-surface-100 p-4 space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Read-only</p>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Vendor / Source Company</p>
+                      <p className="text-sm text-slate-700 mt-0.5">{candidate.vendor_name || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Submitted By</p>
+                      <p className="text-sm text-slate-700 mt-0.5">{candidate.submitted_by_name || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {activeEditTab === 'priority' && (
+              <div className="space-y-6">
+                <div>
+                  <label className="label mb-3 block">Candidate Priority</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { value: 'low',    label: 'Low',    desc: 'Monitor passively',      bg: 'border-slate-200 hover:border-slate-400',   active: 'border-slate-500 bg-slate-50',   dot: 'bg-slate-400' },
+                      { value: 'medium', label: 'Medium', desc: 'Actively pursuing',       bg: 'border-amber-200 hover:border-amber-400',   active: 'border-amber-500 bg-amber-50',   dot: 'bg-amber-500' },
+                      { value: 'high',   label: 'High',   desc: 'Urgent — place quickly',  bg: 'border-red-200 hover:border-red-400',       active: 'border-red-500 bg-red-50',       dot: 'bg-red-500' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, priority: f.priority === opt.value ? '' : opt.value }))}
+                        className={clsx(
+                          'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all text-center',
+                          form.priority === opt.value ? opt.active : opt.bg
+                        )}
+                      >
+                        <span className={clsx('w-3 h-3 rounded-full', opt.dot)} />
+                        <span className="font-semibold text-slate-800 text-sm">{opt.label}</span>
+                        <span className="text-xs text-slate-500">{opt.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {form.priority && (
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, priority: '' }))}
+                      className="mt-3 text-xs text-slate-400 hover:text-slate-600"
+                    >
+                      Clear priority
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Email</label><input className="input" type="email" value={form.email} onChange={set('email')} /></div>
-            <div><label className="label">Phone</label><input className="input" value={form.phone} onChange={set('phone')} /></div>
-          </div>
-          <div><label className="label">LinkedIn URL</label><input className="input" value={form.linkedin_url} onChange={set('linkedin_url')} /></div>
-          <div><label className="label">Current Title</label><input className="input" value={form.title} onChange={set('title')} /></div>
-          <div><label className="label">Professional Summary</label><textarea className="input min-h-[80px] resize-none" value={form.summary} onChange={set('summary')} /></div>
-          <div><label className="label">Skills (comma-separated)</label><input className="input" value={form.skills} onChange={set('skills')} /></div>
-          <div><label className="label">Industries (comma-separated)</label><input className="input" value={form.industry_experience} onChange={set('industry_experience')} /></div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">Years of Experience</label><input className="input" type="number" step="0.5" value={form.years_of_experience} onChange={set('years_of_experience')} /></div>
-            <div>
-              <label className="label">Visa / Work Auth</label>
-              <select className="input" value={form.visa_status} onChange={set('visa_status')}>
-                {VISA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="label">City</label><input className="input" value={form.location_city} onChange={set('location_city')} /></div>
-            <div><label className="label">State</label><input className="input" value={form.location_state} onChange={set('location_state')} /></div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Minimum Rate ($/hr)</label>
-              <p className="text-xs text-slate-400 mb-1">Won't accept below this</p>
-              <input className="input" type="number" value={form.expected_rate_min} onChange={set('expected_rate_min')} />
-            </div>
-            <div>
-              <label className="label">Target Rate ($/hr)</label>
-              <p className="text-xs text-slate-400 mb-1">Ideal ask / negotiation ceiling</p>
-              <input className="input" type="number" value={form.expected_rate_max} onChange={set('expected_rate_max')} />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Relocation</label>
-              <select className="input" value={form.relocation_preference} onChange={set('relocation_preference')}>
-                <option value="willing">Willing to Relocate</option>
-                <option value="not_willing">Not Willing</option>
-                <option value="open">Open</option>
-              </select>
-            </div>
-            <div>
-              <label className="label">Remote Preference</label>
-              <select className="input" value={form.remote_preference} onChange={set('remote_preference')}>
-                <option value="">No Preference</option>
-                <option value="remote_only">Remote Only</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="onsite">On-site</option>
-              </select>
-            </div>
-          </div>
-          <div><label className="label">Availability Date</label><input className="input" type="date" value={form.availability_date} onChange={set('availability_date')} /></div>
-          <div className="flex gap-3 pt-2">
+
+          {/* Footer */}
+          <div className="flex gap-3 p-6 pt-4 border-t border-surface-100 shrink-0">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Cancel</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
@@ -360,6 +473,12 @@ export default function CandidateDetailPage() {
                   {candidate.vendor_name && (
                     <span className="badge bg-amber-50 text-amber-700">Via {candidate.vendor_name}</span>
                   )}
+                  {candidate.priority && (
+                    <span className={clsx('badge flex items-center gap-1', PRIORITY_CONFIG[candidate.priority]?.color)}>
+                      <span className={clsx('w-1.5 h-1.5 rounded-full', PRIORITY_CONFIG[candidate.priority]?.dot)} />
+                      {PRIORITY_CONFIG[candidate.priority]?.label} Priority
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
@@ -578,6 +697,42 @@ export default function CandidateDetailPage() {
                     )}
                   </div>
                 </Section>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'priority' && (
+            <div className="max-w-lg mx-auto space-y-6 py-4">
+              <div className="card p-6">
+                <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                  <Star size={16} className="text-brand-500" /> Candidate Priority
+                </h3>
+                {candidate.priority ? (() => {
+                  const cfg = PRIORITY_CONFIG[candidate.priority];
+                  return (
+                    <div className={clsx('flex items-center gap-3 p-4 rounded-xl border-2', {
+                      'border-red-200 bg-red-50': candidate.priority === 'high',
+                      'border-amber-200 bg-amber-50': candidate.priority === 'medium',
+                      'border-slate-200 bg-slate-50': candidate.priority === 'low',
+                    })}>
+                      <span className={clsx('w-4 h-4 rounded-full shrink-0', cfg.dot)} />
+                      <div>
+                        <p className="font-semibold text-slate-800">{cfg.label} Priority</p>
+                        <p className="text-sm text-slate-500 mt-0.5">
+                          {candidate.priority === 'high' && 'Urgent — place quickly'}
+                          {candidate.priority === 'medium' && 'Actively pursuing'}
+                          {candidate.priority === 'low' && 'Monitor passively'}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })() : (
+                  <div className="text-center py-8 text-slate-400">
+                    <Star size={32} className="mx-auto mb-3 text-slate-200" />
+                    <p className="text-sm">No priority set.</p>
+                    <p className="text-xs mt-1">Edit the profile to assign a priority level.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
