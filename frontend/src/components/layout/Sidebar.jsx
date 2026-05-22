@@ -1,5 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../store/authStore.js';
+import { useQueries } from '@tanstack/react-query';
+import api from '../../lib/api.js';
 import {
   LayoutDashboard, Briefcase, Users, Sparkles,
   GitPullRequest, Upload, LogOut, Zap,
@@ -23,8 +25,8 @@ const ROLE_CONFIG = {
       { to: '/',           icon: LayoutDashboard, label: 'Dashboard',  end: true                      },
       { to: '/clients',    icon: Building2,       label: 'Clients',    permission: 'MANAGE_CLIENTS'   },
       { to: '/vendors',    icon: Store,           label: 'Vendors',    permission: 'MANAGE_VENDORS'   },
-      { to: '/candidates', icon: Users,           label: 'Candidates', permission: 'VIEW_CANDIDATES'  },
-      { to: '/jobs',       icon: Briefcase,       label: 'Jobs',       permission: 'VIEW_JOBS'        },
+      { to: '/candidates', icon: Users,           label: 'Candidates', permission: 'VIEW_CANDIDATES', countUrl: '/api/candidates?limit=1'  },
+      { to: '/jobs',       icon: Briefcase,       label: 'Jobs',       permission: 'VIEW_JOBS',        countUrl: '/api/jobs?limit=1'        },
       { to: '/matches',    icon: Sparkles,        label: 'AI Matches', permission: 'VIEW_MATCHES'     },
       { to: '/pipeline',   icon: GitPullRequest,  label: 'Pipeline',   permission: 'VIEW_PIPELINE'    },
       { to: '/reports',    icon: BarChart2,       label: 'Reports',    permission: 'VIEW_ANALYTICS'   },
@@ -44,9 +46,9 @@ const ROLE_CONFIG = {
     userAvatar: 'from-violet-500 to-violet-700',
     navItems: [
       { to: '/',              icon: LayoutDashboard, label: 'Dashboard',      end: true                  },
-      { to: '/jobs',          icon: Briefcase,       label: 'Jobs',           permission: 'VIEW_JOBS'    },
-      { to: '/candidates',    icon: Users,           label: 'My Candidates'                              },
-      { to: '/pipeline',      icon: GitPullRequest,  label: 'My Submissions'                             },
+      { to: '/jobs',          icon: Briefcase,       label: 'Jobs',           permission: 'VIEW_JOBS', countUrl: '/api/jobs?limit=1'         },
+      { to: '/candidates',    icon: Users,           label: 'My Candidates',                             countUrl: '/api/candidates?limit=1'   },
+      { to: '/pipeline',      icon: GitPullRequest,  label: 'My Submissions',                            countUrl: '/api/submissions?limit=1'  },
       { to: '/upload',        icon: Upload,          label: 'Upload Resume'                              },
       { to: '/vendor-admin',  icon: ShieldCheck,     label: 'Admin',          permission: 'MANAGE_USERS' },
     ],
@@ -75,6 +77,21 @@ export default function Sidebar() {
   const cfg = ROLE_CONFIG[user?.orgType] || ROLE_CONFIG.default;
 
   const handleLogout = () => { logout(); navigate('/login'); };
+
+  const visibleItems = cfg.navItems.filter(({ permission }) => !permission || user?.permissions?.includes(permission));
+  const countItems = visibleItems.filter(item => item.countUrl);
+
+  const countResults = useQueries({
+    queries: countItems.map(item => ({
+      queryKey: ['nav-count', item.countUrl],
+      queryFn: () => api.get(item.countUrl).then(r => r.data.total ?? null),
+      staleTime: 60_000,
+    })),
+  });
+
+  const countMap = Object.fromEntries(
+    countItems.map((item, i) => [item.to, countResults[i]?.data ?? null])
+  );
 
   return (
     <aside className={clsx('w-64 flex flex-col h-full shrink-0', cfg.sidebar)}>
@@ -108,7 +125,7 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {cfg.navItems.filter(({ permission }) => !permission || user?.permissions?.includes(permission)).map(({ to, icon: Icon, label, end }) => (
+        {visibleItems.map(({ to, icon: Icon, label, end }) => (
           <NavLink
             key={to}
             to={to}
@@ -121,7 +138,12 @@ export default function Sidebar() {
             }
           >
             <Icon size={18} className="shrink-0" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {countMap[to] != null && (
+              <span className="text-xs font-semibold px-1.5 py-0.5 rounded-md bg-white/10 text-white/70 tabular-nums">
+                {countMap[to]}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>
