@@ -311,7 +311,7 @@ router.post('/forgot-password', async (req, res) => {
       [JSON.stringify({ reset_token: token, reset_token_expires: expires.toISOString() }), user.id]
     );
 
-    const frontendUrl = process.env.FRONTEND_URL || 'https://staffos.vercel.app';
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://staffos360.com').split(',')[0].trim();
     const resetUrl = `${frontendUrl}/reset-password?token=${token}`;
 
     await resend.emails.send({
