@@ -55,9 +55,11 @@ router.get('/', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
        c.upload_source, c.vendor_org_id, c.created_at, c.profile_completeness,
        c.industry_experience, c.is_active, c.priority,
        c.first_name, c.last_name,
-       v.name as vendor_name
+       v.name as vendor_name,
+       COALESCE(v.name, o.name) as source_org_name
      FROM candidates c
      LEFT JOIN organizations v ON v.id = c.vendor_org_id
+     LEFT JOIN organizations o ON o.id = c.org_id
      WHERE ${where}
      ORDER BY c.created_at DESC
      LIMIT $${idx++} OFFSET $${idx}`,
