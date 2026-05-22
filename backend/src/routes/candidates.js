@@ -53,7 +53,7 @@ router.get('/', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
     `SELECT c.id, c.title, c.skills, c.years_of_experience, c.location_city, c.location_state,
        c.visa_status, c.expected_rate_min, c.expected_rate_max, c.availability_date,
        c.upload_source, c.vendor_org_id, c.created_at, c.profile_completeness,
-       c.industry_experience, c.is_active,
+       c.industry_experience, c.is_active, c.priority,
        c.first_name, c.last_name,
        v.name as vendor_name
      FROM candidates c

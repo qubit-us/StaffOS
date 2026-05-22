@@ -24,6 +24,12 @@ const sourceColors = {
   linkedin:  'bg-blue-50 text-blue-700',
 };
 
+const priorityConfig = {
+  high:   { label: 'High',   bg: 'bg-red-100 text-red-700 ring-1 ring-red-300',       dot: 'bg-red-500' },
+  medium: { label: 'Medium', bg: 'bg-amber-100 text-amber-700 ring-1 ring-amber-300', dot: 'bg-amber-500' },
+  low:    { label: 'Low',    bg: 'bg-slate-100 text-slate-600 ring-1 ring-slate-300', dot: 'bg-slate-400' },
+};
+
 const avatarGradients = [
   'from-brand-400 to-brand-600',
   'from-violet-400 to-purple-600',
@@ -183,6 +189,7 @@ export default function CandidatesPage() {
                   <Th field="years_of_experience"  label="Exp"          {...thProps} />
                   <Th field="expected_rate_min"    label="Rate"         {...thProps} />
                   <th className="px-3 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Skills</th>
+                  <Th field="priority"             label="Priority"     {...thProps} />
                   <Th field="upload_source"        label="Source"       {...thProps} />
                   <Th field="profile_completeness" label="Complete"     {...thProps} />
                   <Th field="created_at"           label="Added"        {...thProps} className="pr-5" />
@@ -239,15 +246,25 @@ export default function CandidatesPage() {
 
                     {/* Skills */}
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-1 flex-wrap max-w-[200px]">
-                        {c.skills?.slice(0, 3).map(s => (
-                          <span key={s} className="badge bg-surface-100 text-slate-600 text-xs">{s}</span>
+                      <div className="flex flex-wrap gap-1 max-w-[160px] max-h-[44px] overflow-hidden">
+                        {c.skills?.slice(0, 2).map(s => (
+                          <span key={s} className="badge bg-surface-100 text-slate-600 text-xs whitespace-nowrap">{s}</span>
                         ))}
-                        {c.skills?.length > 3 && (
-                          <span className="badge bg-slate-100 text-slate-400 text-xs">+{c.skills.length - 3}</span>
+                        {c.skills?.length > 2 && (
+                          <span className="badge bg-slate-100 text-slate-400 text-xs">+{c.skills.length - 2}</span>
                         )}
                         {!c.skills?.length && <span className="text-slate-400">—</span>}
                       </div>
+                    </td>
+
+                    {/* Priority */}
+                    <td className="px-3 py-3">
+                      {c.priority ? (
+                        <span className={clsx('badge flex items-center gap-1 w-fit', priorityConfig[c.priority]?.bg)}>
+                          <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', priorityConfig[c.priority]?.dot)} />
+                          {priorityConfig[c.priority]?.label}
+                        </span>
+                      ) : <span className="text-slate-300">—</span>}
                     </td>
 
                     {/* Source */}
