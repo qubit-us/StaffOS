@@ -59,4 +59,14 @@ router.patch('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
   res.json(employer);
 });
 
+// DELETE /api/employers/:id
+router.delete('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
+  const { rows } = await db.query(
+    `DELETE FROM employers WHERE id = $1 AND org_id = $2 RETURNING id`,
+    [req.params.id, req.orgId]
+  );
+  if (!rows.length) return res.status(404).json({ error: 'Employer not found' });
+  res.json({ message: 'Employer removed' });
+});
+
 export default router;

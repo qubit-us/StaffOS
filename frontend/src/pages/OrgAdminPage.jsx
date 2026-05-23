@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { useAuthStore } from '../store/authStore.js';
 import {
   Users, Settings, Plus, X, Loader2, Pencil, Trash2,
-  UserCheck, UserX, ShieldCheck, Lock, Upload,
+  UserCheck, UserX, ShieldCheck, Lock, Upload, Building2,
 } from 'lucide-react';
 
 // ── Add User Modal ───────────────────────────────────────────
@@ -540,11 +540,186 @@ function SettingsTab() {
   );
 }
 
+// ── Employer Modal ────────────────────────────────────────────
+function EmployerModal({ onClose, employer = null }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({
+    name:          employer?.name          || '',
+    ein:           employer?.ein           || '',
+    contact_name:  employer?.contact_name  || '',
+    contact_email: employer?.contact_email || '',
+    contact_phone: employer?.contact_phone || '',
+    notes:         employer?.notes         || '',
+  });
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  const { mutate, isPending } = useMutation({
+    mutationFn: (data) => employer
+      ? api.patch(`/api/employers/${employer.id}`, data).then(r => r.data)
+      : api.post('/api/employers', data).then(r => r.data),
+    onSuccess: () => {
+      toast.success(employer ? 'Employer updated' : 'Employer added');
+      qc.invalidateQueries({ queryKey: ['employers'] });
+      onClose();
+    },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to save employer'),
+  });
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        <div className="flex items-center justify-between p-6 border-b border-surface-200">
+          <h2 className="text-lg font-bold text-slate-900">{employer ? 'Edit Employer' : 'Add Employer'}</h2>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-surface-100 transition-colors">
+            <X size={18} className="text-slate-500" />
+          </button>
+        </div>
+        <form onSubmit={e => { e.preventDefault(); mutate(form); }} className="p-6 space-y-4">
+          <div>
+            <label className="label">Company Name *</label>
+            <input className="input" required value={form.name} onChange={set('name')} placeholder="Acme Corp" />
+          </div>
+          <div>
+            <label className="label">EIN</label>
+            <input className="input" value={form.ein} onChange={set('ein')} placeholder="XX-XXXXXXX" />
+          </div>
+          <div className="border-t border-surface-100 pt-4">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Contact Details</p>
+            <div className="space-y-3">
+              <div>
+                <label className="label">Contact Name</label>
+                <input className="input" value={form.contact_name} onChange={set('contact_name')} placeholder="John Smith" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="label">Email</label>
+                  <input className="input" type="email" value={form.contact_email} onChange={set('contact_email')} placeholder="john@acme.com" />
+                </div>
+                <div>
+                  <label className="label">Phone</label>
+                  <input className="input" value={form.contact_phone} onChange={set('contact_phone')} placeholder="+1 555 000 0000" />
+                </div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="label">Notes</label>
+            <textarea className="input min-h-[60px] resize-none" value={form.notes} onChange={set('notes')} placeholder="Any additional notes..." />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 btn-secondary">Cancel</button>
+            <button type="submit" disabled={isPending}
+              className="flex-1 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-semibold py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2">
+              {isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              {isPending ? 'Saving...' : employer ? 'Save Changes' : 'Add Employer'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ── Employers Tab ─────────────────────────────────────────────
+function EmployersTab() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const { data: employers = [], isLoading } = useQuery({
+    queryKey: ['employers', search],
+    queryFn: () => api.get(`/api/employers?search=${encodeURIComponent(search)}`).then(r => r.data),
+  });
+
+  const { mutate: deleteEmployer } = useMutation({
+    mutationFn: (id) => api.delete(`/api/employers/${id}`).then(r => r.data),
+    onSuccess: () => { toast.success('Employer removed'); qc.invalidateQueries({ queryKey: ['employers'] }); },
+    onError: (err) => toast.error(err.response?.data?.error || 'Failed to delete employer'),
+  });
+
+  return (
+    <div className="space-y-4 max-w-3xl">
+      <div className="flex items-center justify-between gap-3">
+        <div className="relative flex-1 max-w-xs">
+          <input
+            className="input pl-9"
+            placeholder="Search employers..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <Building2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        </div>
+        <button onClick={() => setShowAdd(true)}
+          className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shrink-0">
+          <Plus size={15} /> Add Employer
+        </button>
+      </div>
+
+      <div className="card overflow-hidden">
+        {isLoading ? (
+          <div className="p-10 text-center text-slate-400 text-sm">Loading...</div>
+        ) : employers.length === 0 ? (
+          <div className="p-10 text-center">
+            <Building2 size={32} className="text-slate-200 mx-auto mb-3" />
+            <p className="text-slate-500 font-medium">{search ? 'No employers match your search' : 'No employers yet'}</p>
+            <p className="text-slate-400 text-xs mt-1">Add employers to track H1B/C2C candidate sponsoring companies</p>
+          </div>
+        ) : (
+          <table className="w-full">
+            <thead className="bg-surface-50 border-b border-surface-200">
+              <tr>
+                {['Company', 'EIN', 'Contact', 'Email', 'Phone', ''].map(h => (
+                  <th key={h} className="text-left text-xs font-semibold text-slate-500 uppercase tracking-wider px-4 py-3 whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-100">
+              {employers.map(emp => (
+                <tr key={emp.id} className="hover:bg-surface-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-900">{emp.name}</p>
+                    {emp.notes && <p className="text-xs text-slate-400 truncate max-w-[180px]">{emp.notes}</p>}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-500">{emp.ein || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-600">{emp.contact_name || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-500">
+                    {emp.contact_email
+                      ? <a href={`mailto:${emp.contact_email}`} className="hover:text-brand-600">{emp.contact_email}</a>
+                      : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-500">{emp.contact_phone || '—'}</td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => setEditing(emp)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
+                        <Pencil size={14} />
+                      </button>
+                      <button onClick={() => { if (confirm(`Remove "${emp.name}"?`)) deleteEmployer(emp.id); }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {showAdd && <EmployerModal onClose={() => setShowAdd(false)} />}
+      {editing && <EmployerModal onClose={() => setEditing(null)} employer={editing} />}
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────
 const TABS = [
-  { id: 'users',    label: 'Users',    icon: Users },
-  { id: 'roles',    label: 'Roles',    icon: ShieldCheck },
-  { id: 'settings', label: 'Settings', icon: Settings },
+  { id: 'users',     label: 'Users',     icon: Users },
+  { id: 'roles',     label: 'Roles',     icon: ShieldCheck },
+  { id: 'employers', label: 'Employers', icon: Building2 },
+  { id: 'settings',  label: 'Settings',  icon: Settings },
 ];
 
 export default function OrgAdminPage() {
@@ -573,9 +748,10 @@ export default function OrgAdminPage() {
         ))}
       </div>
 
-      {tab === 'users'    && <UsersTab />}
-      {tab === 'roles'    && <RolesTab />}
-      {tab === 'settings' && <SettingsTab />}
+      {tab === 'users'     && <UsersTab />}
+      {tab === 'roles'     && <RolesTab />}
+      {tab === 'employers' && <EmployersTab />}
+      {tab === 'settings'  && <SettingsTab />}
     </div>
   );
 }
