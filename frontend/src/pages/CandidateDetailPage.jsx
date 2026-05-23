@@ -111,6 +111,8 @@ const EDIT_TABS = [
 ];
 
 function EditCandidateModal({ candidate, onClose, onSaved }) {
+  const { hasPermission } = useAuthStore();
+  const editTabs = EDIT_TABS.filter(t => t.id !== 'priority' || hasPermission('SET_CANDIDATE_PRIORITY'));
   const [activeEditTab, setActiveEditTab] = useState('profile');
   const [form, setForm] = useState({
     first_name:            candidate.first_name || '',
@@ -178,7 +180,7 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
 
         {/* Edit tabs */}
         <div className="flex items-end gap-1 border-b border-surface-100 px-6 shrink-0">
-          {EDIT_TABS.map(tab => (
+          {editTabs.map(tab => (
             <button
               key={tab.id}
               type="button"
@@ -489,7 +491,7 @@ export default function CandidateDetailPage() {
   const [showEdit, setShowEdit] = useState(false);
   const [showPasteLinkedIn, setShowPasteLinkedIn] = useState(false);
   const [linkedInText, setLinkedInText] = useState('');
-  const { user } = useAuthStore();
+  const { user, hasPermission } = useAuthStore();
 
   useEffect(() => {
     setActiveTab('summary');
@@ -608,7 +610,7 @@ export default function CandidateDetailPage() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
-                {(candidate.submitted_by_user_id === user?.id || ['admin','agency_admin','super_admin'].includes(user?.role)) && (
+                {hasPermission('EDIT_CANDIDATE') && (
                   <button onClick={() => setShowEdit(true)} className="btn-secondary text-sm flex items-center gap-1.5">
                     <Edit2 size={14} /> Edit Profile
                   </button>

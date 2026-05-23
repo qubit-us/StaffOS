@@ -113,7 +113,7 @@ function calcCompleteness(p) {
 }
 
 // PATCH /api/candidates/:id — update candidate (creator or org admin only)
-router.patch('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
+router.patch('/:id', requirePermission('EDIT_CANDIDATE'), async (req, res) => {
   // RLS: only the submitter or an org admin can edit
   const { rows: [existing] } = await db.query(
     `SELECT submitted_by_user_id FROM candidates WHERE id = $1 AND org_id = $2`,
@@ -158,6 +158,18 @@ router.patch('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
     if (req.body[key] !== undefined) updates[key] = req.body[key];
   }
   if (!Object.keys(updates).length) return res.status(400).json({ error: 'No valid fields to update' });
+
+  // Priority requires an extra permission
+  if ('priority' in updates) {
+    const { rows: pCheck } = await db.query(
+      `SELECT 1 FROM user_roles ur
+       JOIN role_permissions rp ON rp.role_id = ur.role_id
+       JOIN permissions p ON p.id = rp.permission_id
+       WHERE ur.user_id = $1 AND p.code = 'SET_CANDIDATE_PRIORITY'`,
+      [req.user.id]
+    );
+    if (!pCheck.length) return res.status(403).json({ error: 'Permission required: SET_CANDIDATE_PRIORITY' });
+  }
 
   // Fetch current state and merge with updates to recalculate completeness
   const { rows: [current] } = await db.query(

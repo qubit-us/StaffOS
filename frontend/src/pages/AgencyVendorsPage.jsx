@@ -1,9 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
-import { Plus, Search, Store, MoreVertical, Pencil, Trash2, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Plus, Search, Store, MoreVertical, Pencil, Trash2, ToggleLeft, ToggleRight, ChevronUp, ChevronDown } from 'lucide-react';
 import OnboardVendorModal from './admin/OnboardVendorModal.jsx';
 import EditVendorModal from './admin/EditVendorModal.jsx';
 
@@ -22,6 +22,8 @@ export default function AgencyVendorsPage({ showOnboard = false }) {
   const [editId, setEditId] = useState(null);
   const [menuOpenId, setMenuOpenId] = useState(null);
   const [confirmId, setConfirmId] = useState(null);
+  const [sortKey, setSortKey] = useState('name');
+  const [sortDir, setSortDir] = useState('asc');
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -76,7 +78,29 @@ export default function AgencyVendorsPage({ showOnboard = false }) {
     onError: (err) => toast.error(err.response?.data?.error || 'Failed to remove vendor'),
   });
 
-  const vendors = data?.vendors || [];
+  const vendors = useMemo(() => {
+    const rows = data?.vendors || [];
+    return [...rows].sort((a, b) => {
+      const av = a[sortKey] ?? '';
+      const bv = b[sortKey] ?? '';
+      const cmp = typeof av === 'number'
+        ? av - bv
+        : String(av).localeCompare(String(bv));
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [data, sortKey, sortDir]);
+
+  function toggleSort(key) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    else { setSortKey(key); setSortDir('asc'); }
+  }
+
+  function SortIcon({ col }) {
+    if (sortKey !== col) return <ChevronUp size={13} className="text-slate-300" />;
+    return sortDir === 'asc'
+      ? <ChevronUp size={13} className="text-brand-500" />
+      : <ChevronDown size={13} className="text-brand-500" />;
+  }
 
   return (
     <div className="space-y-5 animate-slide-up">
@@ -128,127 +152,152 @@ export default function AgencyVendorsPage({ showOnboard = false }) {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" ref={menuRef}>
-          {vendors.map(vendor => (
-            <div key={vendor.id} className="card p-5 hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200">
-              {/* Header */}
-              <div className="flex items-start justify-between gap-3 mb-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
-                    <Store size={18} className="text-indigo-600" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-900">{vendor.name}</p>
-                    {vendor.domain && <p className="text-xs text-slate-400">{vendor.domain}</p>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0">
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColors[vendor.relationship_status] || statusColors.active}`}>
-                    {vendor.relationship_status}
-                  </span>
-                  {/* Action menu */}
-                  <div className="relative">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (menuOpenId === vendor.id) { setMenuOpenId(null); setConfirmId(null); }
-                        else { setMenuOpenId(vendor.id); setConfirmId(null); }
-                      }}
-                      className="p-1 rounded-lg hover:bg-surface-100 text-slate-400 hover:text-slate-600 transition-colors">
-                      <MoreVertical size={15} />
-                    </button>
-                    {menuOpenId === vendor.id && (
-                      <div className="absolute right-0 top-7 w-48 bg-white rounded-xl shadow-lg border border-surface-200 z-20 py-1">
-                        {confirmId === vendor.id ? (
-                          <div className="p-3">
-                            <p className="text-xs text-slate-600 mb-1 font-semibold">Remove this vendor?</p>
-                            <p className="text-xs text-slate-400 mb-3">This will deactivate their organization and revoke all portal access.</p>
-                            <div className="flex gap-2">
-                              <button type="button"
-                                onClick={() => { setConfirmId(null); setMenuOpenId(null); }}
-                                className="flex-1 text-xs py-1.5 rounded-lg border border-surface-200 text-slate-600 hover:bg-surface-50 font-semibold transition-colors">
-                                Cancel
-                              </button>
-                              <button type="button"
-                                onClick={() => deleteVendor(vendor.id)}
-                                disabled={isDeleting}
-                                className="flex-1 text-xs py-1.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-semibold transition-colors">
-                                {isDeleting ? 'Removing…' : 'Remove'}
-                              </button>
-                            </div>
+        <div className="card overflow-hidden" ref={menuRef}>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-surface-100 bg-surface-50 text-xs text-slate-500 font-semibold uppercase tracking-wide">
+                <th className="px-4 py-3 text-left">
+                  <button type="button" onClick={() => toggleSort('name')} className="flex items-center gap-1 hover:text-slate-700">
+                    Vendor <SortIcon col="name" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">
+                  <button type="button" onClick={() => toggleSort('relationship_status')} className="flex items-center gap-1 hover:text-slate-700">
+                    Status <SortIcon col="relationship_status" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-center">Portal</th>
+                <th className="px-4 py-3 text-center">
+                  <button type="button" onClick={() => toggleSort('candidate_count')} className="flex items-center gap-1 hover:text-slate-700 mx-auto">
+                    Candidates <SortIcon col="candidate_count" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-center">
+                  <button type="button" onClick={() => toggleSort('user_count')} className="flex items-center gap-1 hover:text-slate-700 mx-auto">
+                    Users <SortIcon col="user_count" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-left">Onboarded By</th>
+                <th className="px-4 py-3 text-left">
+                  <button type="button" onClick={() => toggleSort('onboarded_at')} className="flex items-center gap-1 hover:text-slate-700">
+                    Added <SortIcon col="onboarded_at" />
+                  </button>
+                </th>
+                <th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-50">
+              {vendors.map(vendor => (
+                <tr key={vendor.id} className="hover:bg-surface-50 transition-colors">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                        <Store size={14} className="text-indigo-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-slate-900">{vendor.name}</p>
+                        {vendor.domain && <p className="text-xs text-slate-400">{vendor.domain}</p>}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${statusColors[vendor.relationship_status] || statusColors.active}`}>
+                      {vendor.relationship_status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${vendor.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                      {vendor.is_active ? 'On' : 'Off'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    <Link to={`/candidates?vendor_id=${vendor.id}`} className="font-semibold text-brand-600 hover:underline">
+                      {vendor.candidate_count}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3 text-center text-slate-700 font-medium">{vendor.user_count}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs">{vendor.onboarded_by_name || '—'}</td>
+                  <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                    {new Date(vendor.onboarded_at).toLocaleDateString()}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link to={`/pipeline?vendor_id=${vendor.id}`}
+                        className="text-xs font-semibold text-slate-500 hover:text-slate-700 hover:underline">
+                        Pipeline
+                      </Link>
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (menuOpenId === vendor.id) { setMenuOpenId(null); setConfirmId(null); }
+                            else { setMenuOpenId(vendor.id); setConfirmId(null); }
+                          }}
+                          className="p-1 rounded-lg hover:bg-surface-100 text-slate-400 hover:text-slate-600 transition-colors">
+                          <MoreVertical size={15} />
+                        </button>
+                        {menuOpenId === vendor.id && (
+                          <div className="absolute right-0 top-7 w-48 bg-white rounded-xl shadow-lg border border-surface-200 z-20 py-1">
+                            {confirmId === vendor.id ? (
+                              <div className="p-3">
+                                <p className="text-xs text-slate-600 mb-1 font-semibold">Remove this vendor?</p>
+                                <p className="text-xs text-slate-400 mb-3">This will deactivate their organization and revoke all portal access.</p>
+                                <div className="flex gap-2">
+                                  <button type="button"
+                                    onClick={() => { setConfirmId(null); setMenuOpenId(null); }}
+                                    className="flex-1 text-xs py-1.5 rounded-lg border border-surface-200 text-slate-600 hover:bg-surface-50 font-semibold transition-colors">
+                                    Cancel
+                                  </button>
+                                  <button type="button"
+                                    onClick={() => deleteVendor(vendor.id)}
+                                    disabled={isDeleting}
+                                    className="flex-1 text-xs py-1.5 rounded-lg bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white font-semibold transition-colors">
+                                    {isDeleting ? 'Removing…' : 'Remove'}
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <button type="button"
+                                  onClick={() => { setEditId(vendor.id); setMenuOpenId(null); }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-surface-50 transition-colors">
+                                  <Pencil size={14} className="text-slate-400" /> Edit
+                                </button>
+                                <button type="button"
+                                  onClick={() => {
+                                    toggleStatus({ id: vendor.id, status: vendor.relationship_status === 'active' ? 'inactive' : 'active' });
+                                    setMenuOpenId(null);
+                                  }}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-surface-50 transition-colors">
+                                  {vendor.relationship_status === 'active'
+                                    ? <><ToggleLeft size={14} className="text-slate-400" /> Deactivate</>
+                                    : <><ToggleRight size={14} className="text-emerald-500" /> Activate</>}
+                                </button>
+                                <button type="button"
+                                  onClick={() => togglePortalAccess({ id: vendor.id, is_active: !vendor.is_active })}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-surface-50 transition-colors">
+                                  {vendor.is_active
+                                    ? <><ToggleLeft size={14} className="text-amber-500" /> Disable Login</>
+                                    : <><ToggleRight size={14} className="text-emerald-500" /> Enable Login</>}
+                                </button>
+                                <div className="my-1 border-t border-surface-100" />
+                                <button type="button"
+                                  onClick={() => setConfirmId(vendor.id)}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                                  <Trash2 size={14} /> Remove
+                                </button>
+                              </>
+                            )}
                           </div>
-                        ) : (
-                          <>
-                            <button type="button"
-                              onClick={() => { setEditId(vendor.id); setMenuOpenId(null); }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-surface-50 transition-colors">
-                              <Pencil size={14} className="text-slate-400" /> Edit
-                            </button>
-                            <button type="button"
-                              onClick={() => {
-                                toggleStatus({ id: vendor.id, status: vendor.relationship_status === 'active' ? 'inactive' : 'active' });
-                                setMenuOpenId(null);
-                              }}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-surface-50 transition-colors">
-                              {vendor.relationship_status === 'active'
-                                ? <><ToggleLeft size={14} className="text-slate-400" /> Deactivate</>
-                                : <><ToggleRight size={14} className="text-emerald-500" /> Activate</>}
-                            </button>
-                            <button type="button"
-                              onClick={() => togglePortalAccess({ id: vendor.id, is_active: !vendor.is_active })}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-slate-700 hover:bg-surface-50 transition-colors">
-                              {vendor.is_active
-                                ? <><ToggleLeft size={14} className="text-amber-500" /> Disable Login</>
-                                : <><ToggleRight size={14} className="text-emerald-500" /> Enable Login</>}
-                            </button>
-                            <div className="my-1 border-t border-surface-100" />
-                            <button type="button"
-                              onClick={() => setConfirmId(vendor.id)}
-                              className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                              <Trash2 size={14} /> Remove
-                            </button>
-                          </>
                         )}
                       </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Stats */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-surface-50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-slate-900">{vendor.candidate_count}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Candidates</p>
-                </div>
-                <div className="bg-surface-50 rounded-xl p-3 text-center">
-                  <p className="text-xl font-bold text-slate-900">{vendor.user_count}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">Users</p>
-                </div>
-              </div>
-
-              {/* Meta */}
-              <div className="space-y-1.5 text-xs text-slate-500 mb-4">
-                {vendor.onboarded_by_name && (
-                  <p>Onboarded by <span className="font-medium text-slate-700">{vendor.onboarded_by_name}</span></p>
-                )}
-                <p>Added {new Date(vendor.onboarded_at).toLocaleDateString()}</p>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-3 border-t border-surface-100">
-                <Link to={`/candidates?vendor_id=${vendor.id}`}
-                  className="flex-1 text-center text-xs font-semibold text-brand-600 hover:text-brand-700 py-1.5 rounded-lg hover:bg-brand-50 transition-colors">
-                  View Candidates
-                </Link>
-                <Link to={`/pipeline?vendor_id=${vendor.id}`}
-                  className="flex-1 text-center text-xs font-semibold text-slate-600 hover:text-slate-800 py-1.5 rounded-lg hover:bg-surface-100 transition-colors">
-                  View Pipeline
-                </Link>
-              </div>
-            </div>
-          ))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

@@ -23,7 +23,7 @@ router.get('/', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
 });
 
 // POST /api/employers — create a new employer
-router.post('/', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
+router.post('/', requirePermission('MANAGE_EMPLOYERS'), async (req, res) => {
   const { name, ein, contact_name, contact_email, contact_phone, notes } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Employer name is required' });
 
@@ -42,7 +42,7 @@ router.post('/', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
 });
 
 // PATCH /api/employers/:id
-router.patch('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
+router.patch('/:id', requirePermission('MANAGE_EMPLOYERS'), async (req, res) => {
   const allowed = ['name', 'ein', 'contact_name', 'contact_email', 'contact_phone', 'notes'];
   const updates = {};
   for (const key of allowed) {
@@ -60,7 +60,7 @@ router.patch('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
 });
 
 // DELETE /api/employers/:id
-router.delete('/:id', requirePermission('VIEW_CANDIDATES'), async (req, res) => {
+router.delete('/:id', requirePermission('MANAGE_EMPLOYERS'), async (req, res) => {
   const { rows } = await db.query(
     `DELETE FROM employers WHERE id = $1 AND org_id = $2 RETURNING id`,
     [req.params.id, req.orgId]
