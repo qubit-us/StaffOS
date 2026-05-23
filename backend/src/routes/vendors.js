@@ -120,8 +120,8 @@ router.post('/', requirePermission('MANAGE_VENDORS'), async (req, res) => {
 
       // 3. Create predefined vendor roles
       const ROLE_PERMISSIONS = {
-        'Vendor Admin':     `('UPLOAD_RESUME','SUBMIT_CANDIDATE','VIEW_CANDIDATES','VIEW_PIPELINE','VIEW_NOTIFICATIONS')`,
-        'Vendor Recruiter': `('UPLOAD_RESUME','SUBMIT_CANDIDATE','VIEW_CANDIDATES','VIEW_NOTIFICATIONS')`,
+        'Vendor Admin':     `('VIEW_JOBS','CREATE_JOB','EDIT_JOB','UPLOAD_RESUME','SUBMIT_CANDIDATE','VIEW_CANDIDATES','EDIT_CANDIDATE','VIEW_PIPELINE','VIEW_SUBMISSIONS','VIEW_NOTIFICATIONS','MANAGE_USERS','MANAGE_ROLES','MANAGE_SETTINGS')`,
+        'Vendor Recruiter': `('VIEW_JOBS','UPLOAD_RESUME','SUBMIT_CANDIDATE','VIEW_CANDIDATES','EDIT_CANDIDATE','VIEW_PIPELINE','VIEW_SUBMISSIONS','VIEW_NOTIFICATIONS')`,
       };
       const createdRoles = {};
       for (const [roleName, permsIn] of Object.entries(ROLE_PERMISSIONS)) {
