@@ -272,15 +272,15 @@ router.get('/:id/matches', requirePermission('VIEW_MATCHES'), async (req, res) =
        c.location_city, c.location_state, c.visa_status,
        c.expected_rate_min, c.expected_rate_max,
        c.industry_experience, c.availability_date,
-       -- Anonymized by default
-       CASE WHEN m.is_reviewed THEN c.first_name ELSE 'Candidate' END as first_name,
-       CASE WHEN m.is_reviewed THEN c.last_name  ELSE '#' || SUBSTRING(c.id::text, 1, 6) END as last_name
+       -- Show real names to agency/vendor users; anonymize only for client portal
+       CASE WHEN $4 = 'client' AND NOT m.is_reviewed THEN 'Candidate' ELSE c.first_name END as first_name,
+       CASE WHEN $4 = 'client' AND NOT m.is_reviewed THEN '#' || SUBSTRING(c.id::text, 1, 6) ELSE c.last_name END as last_name
      FROM ai_matches m
      JOIN candidates c ON c.id = m.candidate_id
      WHERE m.job_id = $1 AND m.overall_score >= $2
      ORDER BY m.overall_score DESC
      LIMIT $3`,
-    [req.params.id, min_score, limit]
+    [req.params.id, min_score, limit, req.user.org_type]
   );
 
   res.json(rows);

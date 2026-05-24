@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
+import { useAuthStore } from '../stores/authStore.js';
 import {
   ArrowLeft, MapPin, DollarSign, Star, Briefcase, Users, Sparkles,
   Loader2, X, Edit2, Calendar, Clock, Building2, ChevronRight,
@@ -373,6 +374,8 @@ export default function JobDetailPage() {
 
   const submissions = submissionsData?.submissions || [];
 
+  const { hasPermission } = useAuthStore();
+
   const matchMutation = useMutation({
     mutationFn: () => api.post(`/api/jobs/${id}/match`),
     onSuccess: () => {
@@ -381,6 +384,15 @@ export default function JobDetailPage() {
       qc.invalidateQueries({ queryKey: ['job-matches', id] });
     },
     onError: err => toast.error(err.response?.data?.error || 'Match failed'),
+  });
+
+  const submitCandidateMutation = useMutation({
+    mutationFn: (candidateId) => api.post('/api/submissions', { job_id: id, candidate_id: candidateId }),
+    onSuccess: () => {
+      toast.success('Candidate submitted to pipeline');
+      qc.invalidateQueries({ queryKey: ['job-submissions', id] });
+    },
+    onError: err => toast.error(err.response?.data?.error || 'Submit failed'),
   });
 
   if (isLoading) {
@@ -625,14 +637,16 @@ export default function JobDetailPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {matches.map(m => (
+                {matches.map(m => {
+                  const alreadySubmitted = submissions.some(s => s.candidate_id === m.candidate_id);
+                  return (
                   <div key={m.id} className="flex items-start gap-3 p-3 rounded-xl bg-surface-50 hover:bg-surface-100 transition-colors">
                     <ScoreRing score={m.overall_score} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-slate-800">
+                        <Link to={`/candidates/${m.candidate_id}`} className="font-semibold text-slate-800 hover:text-brand-600 transition-colors">
                           {m.first_name} {m.last_name}
-                        </span>
+                        </Link>
                         {m.visa_status && (
                           <span className="badge bg-slate-100 text-slate-500 text-xs shrink-0">
                             {m.visa_status.replace(/_/g, ' ')}
@@ -678,13 +692,28 @@ export default function JobDetailPage() {
                       </div>
                     </div>
 
-                    {m.is_reviewed && (
-                      <Link to={`/candidates/${m.candidate_id}`} className="text-slate-300 hover:text-brand-500 transition-colors mt-1 shrink-0">
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      {hasPermission('SUBMIT_CANDIDATE') && (
+                        <button
+                          onClick={() => submitCandidateMutation.mutate(m.candidate_id)}
+                          disabled={alreadySubmitted || submitCandidateMutation.isPending}
+                          className={clsx(
+                            'text-xs px-2 py-1 rounded-lg font-medium transition-colors',
+                            alreadySubmitted
+                              ? 'bg-emerald-50 text-emerald-600 cursor-default'
+                              : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                          )}
+                        >
+                          {alreadySubmitted ? 'Submitted' : 'Submit'}
+                        </button>
+                      )}
+                      <Link to={`/candidates/${m.candidate_id}`} className="text-slate-300 hover:text-brand-500 transition-colors">
                         <ChevronRight size={16} />
                       </Link>
-                    )}
+                    </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
