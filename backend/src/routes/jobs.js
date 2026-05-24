@@ -65,7 +65,7 @@ router.get('/', requirePermission('VIEW_JOBS'), async (req, res) => {
 router.get('/:id', requirePermission('VIEW_JOBS'), async (req, res) => {
   const isVendor = req.user.org_type === 'vendor';
   const orgCheck = isVendor
-    ? `j.org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $2 AND status = 'active')`
+    ? `(j.org_id = $2 OR j.org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $2 AND status = 'active'))`
     : `j.org_id = $2`;
 
   const { rows } = await db.query(
