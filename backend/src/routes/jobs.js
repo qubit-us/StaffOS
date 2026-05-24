@@ -331,6 +331,20 @@ router.patch('/:id', requirePermission('EDIT_JOB'), async (req, res) => {
   res.json(rows[0]);
 });
 
+// DELETE /api/jobs/:id
+router.delete('/:id', requirePermission('DELETE_JOB'), async (req, res) => {
+  const isVendor = req.user.org_type === 'vendor';
+  const orgCheck = isVendor
+    ? `(org_id = $2 OR org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $2 AND status = 'active'))`
+    : `org_id = $2`;
+  const { rows } = await db.query(`SELECT id, title FROM jobs WHERE id = $1 AND ${orgCheck}`, [req.params.id, req.orgId]);
+  if (!rows.length) return res.status(404).json({ error: 'Job not found' });
+
+  await db.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
+  logAudit(req, 'job.deleted', 'job', req.params.id, { title: rows[0].title });
+  res.json({ message: 'Job deleted' });
+});
+
 // POST /api/jobs/:id/match — trigger AI matching
 router.post('/:id/match', requirePermission('RUN_MATCHING'), async (req, res) => {
   const isVendorMatch = req.user.org_type === 'vendor';

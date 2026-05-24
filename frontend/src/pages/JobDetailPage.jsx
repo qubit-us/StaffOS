@@ -8,7 +8,7 @@ import {
   ArrowLeft, MapPin, DollarSign, Star, Briefcase, Users, Sparkles,
   Loader2, X, Edit2, Calendar, Clock, Building2, ChevronRight,
   CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Minus,
-  Wifi, Save, BadgeCheck,
+  Wifi, Save, BadgeCheck, Trash2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -395,6 +395,12 @@ export default function JobDetailPage() {
     onError: err => toast.error(err.response?.data?.error || 'Submit failed'),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/api/jobs/${id}`),
+    onSuccess: () => { toast.success('Job deleted'); navigate('/jobs'); },
+    onError: err => toast.error(err.response?.data?.error || 'Delete failed'),
+  });
+
   if (isLoading) {
     return <div className="flex justify-center py-20"><Loader2 className="animate-spin text-brand-500" size={32} /></div>;
   }
@@ -455,6 +461,15 @@ export default function JobDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                {hasPermission('DELETE_JOB') && (
+                  <button
+                    onClick={() => { if (window.confirm('Delete this job? This cannot be undone.')) deleteMutation.mutate(); }}
+                    disabled={deleteMutation.isPending}
+                    className="btn-secondary flex items-center gap-1.5 text-red-600 hover:border-red-300"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </button>
+                )}
                 <button
                   onClick={() => setShowEdit(true)}
                   className="btn-secondary flex items-center gap-1.5"
@@ -640,13 +655,13 @@ export default function JobDetailPage() {
                 {matches.map(m => {
                   const alreadySubmitted = submissions.some(s => s.candidate_id === m.candidate_id);
                   return (
-                  <div key={m.id} className="flex items-start gap-3 p-3 rounded-xl bg-surface-50 hover:bg-surface-100 transition-colors">
+                  <div key={m.id} onClick={() => navigate(`/candidates/${m.candidate_id}`)} className="flex items-start gap-3 p-3 rounded-xl bg-surface-50 hover:bg-surface-100 transition-colors cursor-pointer">
                     <ScoreRing score={m.overall_score} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <Link to={`/candidates/${m.candidate_id}`} className="font-semibold text-slate-800 hover:text-brand-600 transition-colors">
+                        <span className="font-semibold text-slate-800">
                           {m.first_name} {m.last_name}
-                        </Link>
+                        </span>
                         {m.visa_status && (
                           <span className="badge bg-slate-100 text-slate-500 text-xs shrink-0">
                             {m.visa_status.replace(/_/g, ' ')}
@@ -695,7 +710,7 @@ export default function JobDetailPage() {
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       {hasPermission('SUBMIT_CANDIDATE') && (
                         <button
-                          onClick={() => submitCandidateMutation.mutate(m.candidate_id)}
+                          onClick={(e) => { e.stopPropagation(); submitCandidateMutation.mutate(m.candidate_id); }}
                           disabled={alreadySubmitted || submitCandidateMutation.isPending}
                           className={clsx(
                             'text-xs px-2 py-1 rounded-lg font-medium transition-colors',
@@ -707,9 +722,9 @@ export default function JobDetailPage() {
                           {alreadySubmitted ? 'Submitted' : 'Submit'}
                         </button>
                       )}
-                      <Link to={`/candidates/${m.candidate_id}`} className="text-slate-300 hover:text-brand-500 transition-colors">
+                      <span className="text-slate-300 hover:text-brand-500 transition-colors">
                         <ChevronRight size={16} />
-                      </Link>
+                      </span>
                     </div>
                   </div>
                   );
