@@ -26,9 +26,9 @@ router.get('/', requirePermission('VIEW_JOBS'), async (req, res) => {
 
   const isVendor = req.user.org_type === 'vendor';
 
-  // Vendors see open jobs from agencies they have an active relationship with
+  // Vendors see their own jobs + open jobs from agencies they have an active relationship with
   let where = isVendor
-    ? `j.org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $1 AND status = 'active')`
+    ? `(j.org_id = $1 OR j.org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $1 AND status = 'active'))`
     : `j.org_id = $1`;
 
   const params = [req.orgId];
