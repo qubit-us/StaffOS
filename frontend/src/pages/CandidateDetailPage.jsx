@@ -225,7 +225,7 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
                       setForm(f => ({
                         ...f,
                         visa_status: v,
-                        employment_type: v === 'h1b' && f.employment_type === '1099' ? '' : f.employment_type,
+                        employment_type: ['h1b', 'tn'].includes(v) && f.employment_type === '1099' ? '' : f.employment_type,
                       }));
                     }}>
                       {VISA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
@@ -259,7 +259,7 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
                       { value: 'w2',   label: 'W2',   desc: 'Direct employee' },
                       { value: 'c2c',  label: 'C2C',  desc: 'Corp-to-corp' },
                       { value: '1099', label: '1099', desc: 'Independent' },
-                    ].filter(opt => !(form.visa_status === 'h1b' && opt.value === '1099')).map(opt => (
+                    ].filter(opt => !((['h1b','tn'].includes(form.visa_status)) && opt.value === '1099')).map(opt => (
                       <button
                         key={opt.value}
                         type="button"
@@ -276,6 +276,11 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
                       </button>
                     ))}
                   </div>
+                  {['opt','stem_opt'].includes(form.visa_status) && form.employment_type === '1099' && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mt-2">
+                      ⚠️ 1099 work on OPT/STEM OPT must be a qualifying training position related to the field of study. Verify eligibility before proceeding.
+                    </p>
+                  )}
                 </div>
 
                 {/* H1B employer — only show if not W2 */}
