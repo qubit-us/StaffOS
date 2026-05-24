@@ -4,8 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
 import { useAuthStore } from '../store/authStore.js';
 import {
-  ArrowLeft, MapPin, DollarSign, Star, Mail, Phone, Linkedin,
-  Briefcase, GraduationCap, Award, Globe, Calendar, RefreshCw,
+  ArrowLeft, MapPin, DollarSign, Star, Mail, Phone,
+  Briefcase, GraduationCap, Award, Globe, Calendar,
   CheckCircle, AlertCircle, Loader2, Building2, ChevronRight, Edit2, X, Save,
 } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -620,27 +620,6 @@ export default function CandidateDetailPage() {
                   <div className="text-right">
                     <div className="text-lg font-bold text-brand-600">{candidate.profile_completeness}%</div>
                     <div className="text-xs text-slate-400">profile complete</div>
-                  </div>
-                )}
-                {candidate.linkedin_url && (
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={candidate.linkedin_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn-secondary text-sm flex items-center gap-1.5"
-                    >
-                      <Linkedin size={14} /> LinkedIn
-                    </a>
-                    <button
-                      disabled
-                      className="btn-secondary text-sm flex items-center gap-1.5 opacity-50 cursor-not-allowed"
-                      title="LinkedIn enrichment is coming soon"
-                    >
-                      <RefreshCw size={14} />
-                      Enrich
-                      <span className="text-[10px] font-bold bg-amber-100 text-amber-600 px-1.5 py-0.5 rounded-full">Soon</span>
-                    </button>
                   </div>
                 )}
               </div>
