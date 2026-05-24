@@ -12,13 +12,14 @@ function getAnthropicClient() {
 
 function skillOverlap(jobSkills = [], candidateSkills = []) {
   if (!jobSkills.length) return 0.5;
+  if (!candidateSkills?.length) return 0.1; // no skills on candidate profile = poor signal
   const jobSet = new Set(jobSkills.map(s => s.toLowerCase()));
   const matched = candidateSkills.filter(s => jobSet.has(s.toLowerCase()));
   return matched.length / jobSkills.length;
 }
 
 function experienceScore(jobMin, jobMax, candidateYears) {
-  if (!candidateYears) return 0.5;
+  if (!candidateYears) return 0.3; // unknown experience = penalty, not neutral
   const min = jobMin || 0;
   const max = jobMax || 20;
   if (candidateYears >= min && candidateYears <= max + 3) return 1.0;
@@ -27,19 +28,28 @@ function experienceScore(jobMin, jobMax, candidateYears) {
 }
 
 function visaScore(jobVisaReqs = [], candidateVisa) {
-  if (!jobVisaReqs.length) return 1.0;
+  // No job requirement: known visa passes fully, unknown gets mild penalty
+  if (!jobVisaReqs.length) return candidateVisa ? 1.0 : 0.5;
+
+  // Job has requirements but candidate visa is unknown = high risk
+  if (!candidateVisa) return 0.15;
+
   const any = jobVisaReqs.some(r => r.toLowerCase().includes('any') || r.toLowerCase().includes('all'));
   if (any) return 1.0;
-  const gc = jobVisaReqs.some(r => r.toLowerCase().includes('gc') || r.toLowerCase().includes('green card'));
-  const citizen = jobVisaReqs.some(r => r.toLowerCase().includes('citizen'));
-  if (citizen && candidateVisa === 'citizen') return 1.0;
-  if (gc && ['citizen','green_card'].includes(candidateVisa)) return 1.0;
-  if (['citizen','green_card','h1b'].includes(candidateVisa)) return 0.7;
-  return 0.3;
+
+  // Exact match in allowed list
+  if (jobVisaReqs.includes(candidateVisa)) return 1.0;
+
+  // Strong work authorization types are broadly acceptable
+  if (['citizen','green_card'].includes(candidateVisa)) return 0.8;
+  if (['h1b','h4_ead','l1'].includes(candidateVisa)) return 0.5;
+  return 0.2;
 }
 
 function rateScore(jobMin, jobMax, candidateMin, candidateMax) {
-  if (!candidateMin || !jobMax) return 0.8;
+  if (!candidateMin && !jobMax) return 0.5;
+  if (!candidateMin) return 0.4; // unknown candidate rate = uncertainty penalty, not 0.8
+  if (!jobMax) return 0.7;       // job rate unspecified = neutral-positive
   if (candidateMin <= jobMax) return 1.0;
   const gap = candidateMin - jobMax;
   return Math.max(0, 1 - gap / jobMax);
@@ -47,7 +57,8 @@ function rateScore(jobMin, jobMax, candidateMin, candidateMax) {
 
 function locationScore(job, candidate) {
   if (job.remote_allowed) return 1.0;
-  if (!job.location_state || !candidate.location_state) return 0.7;
+  if (!candidate.location_state) return 0.4; // unknown candidate location = penalty, not 0.7
+  if (!job.location_state) return 0.7;       // job location unspecified = flexible
   if (job.location_state === candidate.location_state) return 1.0;
   if (candidate.relocation_preference === 'willing') return 0.8;
   return 0.4;
