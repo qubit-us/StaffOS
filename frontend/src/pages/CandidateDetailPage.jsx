@@ -220,7 +220,14 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
                   <div><label className="label">Years of Experience</label><input className="input" type="number" step="0.5" value={form.years_of_experience} onChange={set('years_of_experience')} /></div>
                   <div>
                     <label className="label">Visa / Work Auth</label>
-                    <select className="input" value={form.visa_status} onChange={set('visa_status')}>
+                    <select className="input" value={form.visa_status} onChange={e => {
+                      const v = e.target.value;
+                      setForm(f => ({
+                        ...f,
+                        visa_status: v,
+                        employment_type: v === 'h1b' && f.employment_type === '1099' ? '' : f.employment_type,
+                      }));
+                    }}>
                       {VISA_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   </div>
@@ -252,7 +259,7 @@ function EditCandidateModal({ candidate, onClose, onSaved }) {
                       { value: 'w2',   label: 'W2',   desc: 'Direct employee' },
                       { value: 'c2c',  label: 'C2C',  desc: 'Corp-to-corp' },
                       { value: '1099', label: '1099', desc: 'Independent' },
-                    ].map(opt => (
+                    ].filter(opt => !(form.visa_status === 'h1b' && opt.value === '1099')).map(opt => (
                       <button
                         key={opt.value}
                         type="button"
