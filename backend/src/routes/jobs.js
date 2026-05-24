@@ -229,8 +229,13 @@ router.patch('/:id', requirePermission('EDIT_JOB'), async (req, res) => {
   const sets = Object.keys(updates).map((k, i) => `${k} = $${i + 2}`);
   const vals = Object.values(updates);
 
+  const isVendor = req.user.org_type === 'vendor';
+  const orgCheck = isVendor
+    ? `(org_id = $${vals.length + 2} OR org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $${vals.length + 2} AND status = 'active'))`
+    : `org_id = $${vals.length + 2}`;
+
   const { rows } = await db.query(
-    `UPDATE jobs SET ${sets.join(', ')} WHERE id = $1 AND org_id = $${vals.length + 2} RETURNING *`,
+    `UPDATE jobs SET ${sets.join(', ')} WHERE id = $1 AND ${orgCheck} RETURNING *`,
     [req.params.id, ...vals, req.orgId]
   );
   if (!rows.length) return res.status(404).json({ error: 'Job not found' });
@@ -240,7 +245,11 @@ router.patch('/:id', requirePermission('EDIT_JOB'), async (req, res) => {
 
 // POST /api/jobs/:id/match — trigger AI matching
 router.post('/:id/match', requirePermission('RUN_MATCHING'), async (req, res) => {
-  const { rows } = await db.query('SELECT * FROM jobs WHERE id = $1 AND org_id = $2', [req.params.id, req.orgId]);
+  const isVendorMatch = req.user.org_type === 'vendor';
+  const matchOrgCheck = isVendorMatch
+    ? `(org_id = $2 OR org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $2 AND status = 'active'))`
+    : `org_id = $2`;
+  const { rows } = await db.query(`SELECT * FROM jobs WHERE id = $1 AND ${matchOrgCheck}`, [req.params.id, req.orgId]);
   if (!rows.length) return res.status(404).json({ error: 'Job not found' });
 
   const job = rows[0];
