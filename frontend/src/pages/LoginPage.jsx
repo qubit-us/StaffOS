@@ -121,7 +121,7 @@ export default function LoginPage() {
             <form onSubmit={handleForgot} className="space-y-4">
               {forgotSent ? (
                 <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl p-4 text-sm">
-                  Check your inbox — if that email exists, a reset link has been sent.
+                  Check your inbox — a reset link has been sent to <span className="font-semibold">{email.replace(/^(.{2})(.*)(@.*)$/, (_, a, b, c) => a + '*'.repeat(Math.max(1, b.length)) + c)}</span>
                 </div>
               ) : (
                 <>
