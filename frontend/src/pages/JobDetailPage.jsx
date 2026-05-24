@@ -154,12 +154,14 @@ function EditJobModal({ job, onClose, onSaved }) {
         ...form,
         required_skills:     form.required_skills.split(',').map(s => s.trim()).filter(Boolean),
         nice_to_have_skills: form.nice_to_have_skills.split(',').map(s => s.trim()).filter(Boolean),
-        experience_min: form.experience_min ? parseFloat(form.experience_min) : null,
-        experience_max: form.experience_max ? parseFloat(form.experience_max) : null,
-        pay_rate_min:      form.pay_rate_min      ? parseFloat(form.pay_rate_min)      : null,
-        pay_rate_max:      form.pay_rate_max      ? parseFloat(form.pay_rate_max)      : null,
-        client_bill_rate:  form.client_bill_rate  ? parseFloat(form.client_bill_rate)  : null,
-        deadline:          form.deadline || null,
+        experience_min:   form.experience_min   ? parseFloat(form.experience_min)   : null,
+        experience_max:   form.experience_max   ? parseFloat(form.experience_max)   : null,
+        pay_rate_min:     form.pay_rate_min     ? parseFloat(form.pay_rate_min)     : null,
+        pay_rate_max:     form.pay_rate_max     ? parseFloat(form.pay_rate_max)     : null,
+        client_bill_rate: form.client_bill_rate ? parseFloat(form.client_bill_rate) : null,
+        positions_count:  form.positions_count  ? parseInt(form.positions_count)    : 1,
+        client_org_id:    form.client_org_id    || null,
+        deadline:         form.deadline         || null,
       };
       const { data } = await api.patch(`/api/jobs/${job.id}`, payload);
       toast.success('Job updated');
