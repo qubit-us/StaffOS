@@ -610,8 +610,9 @@ export default function CandidateDetailPage() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-2">
-                {hasPermission('EDIT_CANDIDATE') && (
-                  <button onClick={() => setShowEdit(true)} className="btn-secondary text-sm flex items-center gap-1.5">
+                {(hasPermission('EDIT_CANDIDATE') || candidate.submitted_by_user_id === user?.id) && (
+                  <button onClick={() => setShowEdit(true)}
+                    className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm">
                     <Edit2 size={14} /> Edit Profile
                   </button>
                 )}
