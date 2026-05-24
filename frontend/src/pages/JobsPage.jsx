@@ -2,8 +2,9 @@ import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '../lib/api.js';
 import toast from 'react-hot-toast';
-import { Plus, Briefcase, MapPin, DollarSign, Users, Sparkles, Search, Loader2, X, ChevronUp, ChevronDown, ChevronsUpDown, Wifi, Wand2 } from 'lucide-react';
+import { Plus, Briefcase, MapPin, DollarSign, Users, Sparkles, Search, Loader2, X, ChevronUp, ChevronDown, ChevronsUpDown, Wifi, Wand2, FileText, Upload, Zap } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useDropzone } from 'react-dropzone';
 import { clsx } from 'clsx';
 
 const statusColors = {
@@ -95,6 +96,54 @@ function VisaCheckboxes({ selected, onChange }) {
   );
 }
 
+function FileDropzone({ onFile, accept, label }) {
+  const { getRootProps, getInputProps, isDragActive, acceptedFiles } = useDropzone({
+    onDrop: files => files[0] && onFile(files[0]),
+    accept,
+    maxFiles: 1,
+    maxSize: 10 * 1024 * 1024,
+  });
+  return (
+    <div {...getRootProps()} className={clsx(
+      'border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors',
+      isDragActive ? 'border-brand-400 bg-brand-50' : 'border-surface-200 hover:border-brand-300 hover:bg-brand-50/50'
+    )}>
+      <input {...getInputProps()} />
+      <Upload size={24} className="mx-auto mb-2 text-slate-400" />
+      {acceptedFiles[0]
+        ? <p className="text-sm font-medium text-brand-700">{acceptedFiles[0].name}</p>
+        : <p className="text-sm text-slate-500">{label}</p>
+      }
+      <p className="text-xs text-slate-400 mt-1">Max 10 MB</p>
+    </div>
+  );
+}
+
+function applyParsedFields(data, setForm, originalJd) {
+  setForm(f => ({
+    ...f,
+    title:               data.title                              || f.title,
+    description:         data.description                        || f.description,
+    required_skills:     data.required_skills?.join(', ')        || f.required_skills,
+    nice_to_have_skills: data.nice_to_have_skills?.join(', ')    || f.nice_to_have_skills,
+    experience_min:      data.experience_min      ?? f.experience_min,
+    experience_max:      data.experience_max      ?? f.experience_max,
+    pay_rate_min:        data.pay_rate_min        ?? f.pay_rate_min,
+    pay_rate_max:        data.pay_rate_max        ?? f.pay_rate_max,
+    job_type:            data.job_type             || f.job_type,
+    location_city:       data.location_city        || f.location_city,
+    location_state:      data.location_state       || f.location_state,
+    remote_allowed:        data.remote_allowed        ?? f.remote_allowed,
+    visa_requirements:     data.visa_requirements?.length ? data.visa_requirements : f.visa_requirements,
+    clearance_level:       data.clearance_level        || f.clearance_level,
+    clearance_status:      data.clearance_status       || f.clearance_status,
+    polygraph:             data.polygraph              || f.polygraph,
+    education_requirement: data.education_requirement  || f.education_requirement,
+    travel_requirement:    data.travel_requirement     || f.travel_requirement,
+    original_jd:           originalJd                 || f.original_jd,
+  }));
+}
+
 function NewJobModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
     title: '', description: '', required_skills: '', nice_to_have_skills: '',
@@ -105,11 +154,16 @@ function NewJobModal({ onClose, onCreated }) {
     client_org_id: '',
     clearance_level: 'none', clearance_status: 'not_required', polygraph: 'none',
     education_requirement: 'none', travel_requirement: 'none', positions_count: 1,
+    original_jd: '',
   });
   const [saving, setSaving] = useState(false);
   const [showAssist, setShowAssist] = useState(false);
+  const [assistTab, setAssistTab] = useState('text');
   const [rawText, setRawText] = useState('');
+  const [uploadFile, setUploadFile] = useState(null);
+  const [genForm, setGenForm] = useState({ title: '', job_type: 'contract', location_city: '', location_state: '', skills: '', notes: '' });
   const [parsing, setParsing] = useState(false);
+  const [showOriginalJd, setShowOriginalJd] = useState(false);
 
   const { data: clientsData } = useQuery({
     queryKey: ['clients-dropdown'],
@@ -121,32 +175,50 @@ function NewJobModal({ onClose, onCreated }) {
     setParsing(true);
     try {
       const { data } = await api.post('/api/jobs/parse-jd', { text: rawText });
-      setForm(f => ({
-        ...f,
-        title:               data.title                              || f.title,
-        description:         data.description                        || f.description,
-        required_skills:     data.required_skills?.join(', ')        || f.required_skills,
-        nice_to_have_skills: data.nice_to_have_skills?.join(', ')    || f.nice_to_have_skills,
-        experience_min:      data.experience_min      ?? f.experience_min,
-        experience_max:      data.experience_max      ?? f.experience_max,
-        pay_rate_min:        data.pay_rate_min        ?? f.pay_rate_min,
-        pay_rate_max:        data.pay_rate_max        ?? f.pay_rate_max,
-        job_type:            data.job_type             || f.job_type,
-        location_city:       data.location_city        || f.location_city,
-        location_state:      data.location_state       || f.location_state,
-        remote_allowed:        data.remote_allowed        ?? f.remote_allowed,
-        visa_requirements:     data.visa_requirements?.length ? data.visa_requirements : f.visa_requirements,
-        clearance_level:       data.clearance_level        || f.clearance_level,
-        clearance_status:      data.clearance_status       || f.clearance_status,
-        polygraph:             data.polygraph              || f.polygraph,
-        education_requirement: data.education_requirement  || f.education_requirement,
-        travel_requirement:    data.travel_requirement     || f.travel_requirement,
-      }));
+      applyParsedFields(data, setForm, rawText);
       toast.success('Fields pre-filled from job description');
       setShowAssist(false);
+      setShowOriginalJd(true);
       setRawText('');
     } catch (err) {
       toast.error(err.response?.data?.error || 'Failed to parse description');
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const handleFileParse = async () => {
+    if (!uploadFile) return;
+    setParsing(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      const { data } = await api.post('/api/jobs/parse-jd', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      applyParsedFields(data, setForm, data._source_text || `[Extracted from: ${uploadFile.name}]`);
+      toast.success('Fields pre-filled from uploaded file');
+      setShowAssist(false);
+      setShowOriginalJd(true);
+      setUploadFile(null);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to parse file');
+    } finally {
+      setParsing(false);
+    }
+  };
+
+  const handleGenerate = async () => {
+    if (!genForm.title.trim()) return toast.error('Enter a job title to generate');
+    setParsing(true);
+    try {
+      const { data } = await api.post('/api/jobs/generate-jd', genForm);
+      applyParsedFields(data, setForm, data.jd_text || '');
+      toast.success('Job description generated!');
+      setShowAssist(false);
+      setShowOriginalJd(true);
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to generate job description');
     } finally {
       setParsing(false);
     }
@@ -165,6 +237,7 @@ function NewJobModal({ onClose, onCreated }) {
         pay_rate_max:     form.pay_rate_max     ? parseFloat(form.pay_rate_max)     : null,
         client_bill_rate: form.client_bill_rate ? parseFloat(form.client_bill_rate) : null,
         client_org_id:    form.client_org_id    || null,
+        original_jd:      form.original_jd      || null,
       };
       const { data } = await api.post('/api/jobs', payload);
       toast.success('Job created! AI matching will run automatically.');
@@ -192,24 +265,92 @@ function NewJobModal({ onClose, onCreated }) {
             <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <p className="text-sm font-semibold text-brand-700 flex items-center gap-1.5"><Wand2 size={14} /> AI Assist</p>
-                <button type="button" onClick={() => { setShowAssist(false); setRawText(''); }} className="text-brand-400 hover:text-brand-700"><X size={15} /></button>
+                <button type="button" onClick={() => { setShowAssist(false); setRawText(''); setUploadFile(null); }} className="text-brand-400 hover:text-brand-700"><X size={15} /></button>
               </div>
-              <p className="text-xs text-brand-600">Paste a raw job description below — Claude will extract and fill the fields for you.</p>
-              <textarea
-                className="input min-h-[120px] resize-none text-sm"
-                placeholder="Paste job description here..."
-                value={rawText}
-                onChange={e => setRawText(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={handleParse}
-                disabled={parsing || !rawText.trim()}
-                className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-lg transition-colors"
-              >
-                {parsing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-                {parsing ? 'Analyzing...' : 'Parse & Fill Fields'}
-              </button>
+
+              {/* Tabs */}
+              <div className="flex gap-1 bg-brand-100 rounded-lg p-1">
+                {[
+                  { id: 'text',     icon: <FileText size={13} />,  label: 'Paste Text' },
+                  { id: 'file',     icon: <Upload size={13} />,    label: 'Upload File' },
+                  { id: 'generate', icon: <Zap size={13} />,       label: 'Generate' },
+                ].map(tab => (
+                  <button key={tab.id} type="button"
+                    onClick={() => setAssistTab(tab.id)}
+                    className={clsx(
+                      'flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md text-xs font-semibold transition-colors',
+                      assistTab === tab.id ? 'bg-white text-brand-700 shadow-sm' : 'text-brand-500 hover:text-brand-700'
+                    )}
+                  >
+                    {tab.icon} {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              {assistTab === 'text' && (
+                <>
+                  <p className="text-xs text-brand-600">Paste a raw job description — Claude will extract and fill the fields.</p>
+                  <textarea
+                    className="input min-h-[120px] resize-none text-sm"
+                    placeholder="Paste job description here..."
+                    value={rawText}
+                    onChange={e => setRawText(e.target.value)}
+                  />
+                  <button type="button" onClick={handleParse} disabled={parsing || !rawText.trim()}
+                    className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                    {parsing ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+                    {parsing ? 'Analyzing...' : 'Parse & Fill Fields'}
+                  </button>
+                </>
+              )}
+
+              {assistTab === 'file' && (
+                <>
+                  <p className="text-xs text-brand-600">Upload a PDF or image of the job description — Claude will extract and fill the fields.</p>
+                  <FileDropzone
+                    onFile={setUploadFile}
+                    accept={{ 'application/pdf': ['.pdf'], 'image/*': ['.png','.jpg','.jpeg','.webp'] }}
+                    label="Drop a PDF or image here, or click to browse"
+                  />
+                  {uploadFile && (
+                    <p className="text-xs text-brand-700 font-medium flex items-center gap-1">
+                      <FileText size={12} /> {uploadFile.name}
+                    </p>
+                  )}
+                  <button type="button" onClick={handleFileParse} disabled={parsing || !uploadFile}
+                    className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                    {parsing ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                    {parsing ? 'Analyzing...' : 'Parse File & Fill Fields'}
+                  </button>
+                </>
+              )}
+
+              {assistTab === 'generate' && (
+                <>
+                  <p className="text-xs text-brand-600">Enter minimal details — Claude will write a full job description and fill all fields.</p>
+                  <div className="space-y-2">
+                    <input className="input text-sm" placeholder="Job Title *" value={genForm.title}
+                      onChange={e => setGenForm(f => ({ ...f, title: e.target.value }))} />
+                    <div className="grid grid-cols-2 gap-2">
+                      <select className="input text-sm" value={genForm.job_type}
+                        onChange={e => setGenForm(f => ({ ...f, job_type: e.target.value }))}>
+                        {JOB_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                      </select>
+                      <input className="input text-sm" placeholder="State (e.g. VA)" value={genForm.location_state}
+                        onChange={e => setGenForm(f => ({ ...f, location_state: e.target.value }))} />
+                    </div>
+                    <input className="input text-sm" placeholder="Key skills (e.g. React, AWS, 5+ yrs)" value={genForm.skills}
+                      onChange={e => setGenForm(f => ({ ...f, skills: e.target.value }))} />
+                    <textarea className="input text-sm resize-none min-h-[60px]" placeholder="Additional notes (optional)" value={genForm.notes}
+                      onChange={e => setGenForm(f => ({ ...f, notes: e.target.value }))} />
+                  </div>
+                  <button type="button" onClick={handleGenerate} disabled={parsing || !genForm.title.trim()}
+                    className="w-full flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-lg transition-colors">
+                    {parsing ? <Loader2 size={14} className="animate-spin" /> : <Zap size={14} />}
+                    {parsing ? 'Generating...' : 'Generate Job Description'}
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <button
@@ -217,7 +358,7 @@ function NewJobModal({ onClose, onCreated }) {
               onClick={() => setShowAssist(true)}
               className="w-full flex items-center justify-center gap-2 border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 text-sm font-semibold py-2.5 rounded-xl transition-colors"
             >
-              <Wand2 size={14} /> AI Assist — paste a job description to auto-fill
+              <Wand2 size={14} /> AI Assist — paste, upload, or generate a job description
             </button>
           )}
           <div>
@@ -244,6 +385,25 @@ function NewJobModal({ onClose, onCreated }) {
             <label className="label">Description</label>
             <textarea className="input min-h-[90px] resize-none" placeholder="Job description, responsibilities..." value={form.description} onChange={set('description')} />
           </div>
+
+          {/* Original JD — collapsible */}
+          {form.original_jd && (
+            <div className="border border-surface-200 rounded-xl overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowOriginalJd(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-2.5 bg-surface-50 hover:bg-surface-100 transition-colors text-sm font-medium text-slate-600"
+              >
+                <span className="flex items-center gap-2"><FileText size={14} className="text-brand-500" /> Original Job Description</span>
+                <ChevronDown size={14} className={clsx('transition-transform', showOriginalJd && 'rotate-180')} />
+              </button>
+              {showOriginalJd && (
+                <div className="px-4 py-3 max-h-64 overflow-y-auto bg-white">
+                  <pre className="text-xs text-slate-600 whitespace-pre-wrap font-sans leading-relaxed">{form.original_jd}</pre>
+                </div>
+              )}
+            </div>
+          )}
           <div>
             <label className="label">Required Skills (comma-separated)</label>
             <input className="input" placeholder="React, TypeScript, Node.js, AWS" value={form.required_skills} onChange={set('required_skills')} />
