@@ -214,4 +214,155 @@ router.post('/apply', async (req, res) => {
   }
 });
 
+// ============================================================
+// DIRECT SHARE LINK — /api/public/apply/:jobId
+// Works for any open job (not just is_public) — candidates go into job's org (Option A)
+// ============================================================
+
+// GET /api/public/apply/:jobId — job details for a direct share link
+router.get('/apply/:jobId', async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT j.id, j.title, j.description, j.location_city, j.location_state,
+              j.remote_allowed, j.job_type, j.experience_min, j.experience_max,
+              j.required_skills, j.nice_to_have_skills, j.visa_requirements,
+              j.deadline, j.positions_count, j.created_at,
+              o.id as org_id, o.name as org_name, o.logo_url as org_logo, o.website as org_website
+       FROM jobs j
+       JOIN organizations o ON o.id = j.org_id
+       WHERE j.id = $1 AND j.status IN ('open', 'matching')`,
+      [req.params.jobId]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'This position is no longer available.' });
+    res.json(rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/public/apply/:jobId/register — new candidate: register + apply in one step
+router.post('/apply/:jobId/register', async (req, res) => {
+  const conn = await db.connect();
+  try {
+    await conn.query('BEGIN');
+
+    const { first_name, last_name, email, password, phone, title, visa_status } = req.body;
+    if (!first_name || !last_name) return res.status(400).json({ error: 'Full name is required' });
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+    if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+
+    const { rows: [job] } = await conn.query(
+      `SELECT id, org_id, title FROM jobs WHERE id = $1 AND status IN ('open', 'matching')`,
+      [req.params.jobId]
+    );
+    if (!job) return res.status(404).json({ error: 'This position is no longer available.' });
+
+    const { rows: existing } = await conn.query(
+      `SELECT id FROM users WHERE email = $1`, [email.toLowerCase()]
+    );
+    if (existing.length) return res.status(409).json({ error: 'An account with this email already exists. Please sign in instead.' });
+
+    const passwordHash = await bcrypt.hash(password, 12);
+
+    // User lives under PUBLIC_ORG
+    const { rows: [user] } = await conn.query(
+      `INSERT INTO users (org_id, email, password_hash, first_name, last_name, email_verified)
+       VALUES ($1, $2, $3, $4, $5, true) RETURNING id, email, first_name, last_name`,
+      [PUBLIC_ORG_ID, email.toLowerCase(), passwordHash, first_name, last_name]
+    );
+
+    // Candidate lives under JOB's agency org (Option A)
+    const { rows: [candidate] } = await conn.query(
+      `INSERT INTO candidates (org_id, submitted_by_user_id, upload_source, first_name, last_name, email, phone, title, visa_status)
+       VALUES ($1, $2, 'self_applied', $3, $4, $5, $6, $7, $8) RETURNING id`,
+      [job.org_id, user.id, first_name, last_name, email.toLowerCase(), phone || null, title || null, visa_status || 'unknown']
+    );
+
+    // Submission tagged as direct_applicant
+    await conn.query(
+      `INSERT INTO submissions (job_id, candidate_id, org_id, submission_source, internal_stage, is_anonymized, profile_unlocked)
+       VALUES ($1, $2, $3, 'direct_applicant', 'new', false, false)`,
+      [job.id, candidate.id, job.org_id]
+    );
+
+    await conn.query('COMMIT');
+    res.status(201).json({
+      user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name },
+      candidate_id: candidate.id,
+      message: `You've successfully applied for "${job.title}". We'll be in touch soon!`,
+    });
+  } catch (err) {
+    await conn.query('ROLLBACK');
+    if (err.code === '23505') return res.status(409).json({ error: 'Email already registered. Please sign in.' });
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
+// POST /api/public/apply/:jobId/login — existing user signs in and applies
+router.post('/apply/:jobId/login', async (req, res) => {
+  const conn = await db.connect();
+  try {
+    await conn.query('BEGIN');
+
+    const { email, password } = req.body;
+    if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+    const { rows: [job] } = await conn.query(
+      `SELECT id, org_id, title FROM jobs WHERE id = $1 AND status IN ('open', 'matching')`,
+      [req.params.jobId]
+    );
+    if (!job) return res.status(404).json({ error: 'This position is no longer available.' });
+
+    const { rows: [user] } = await conn.query(
+      `SELECT id, email, password_hash, first_name, last_name FROM users WHERE email = $1 AND is_active = true`,
+      [email.toLowerCase()]
+    );
+    if (!user) return res.status(401).json({ error: 'Invalid email or password' });
+
+    const valid = await bcrypt.compare(password, user.password_hash);
+    if (!valid) return res.status(401).json({ error: 'Invalid email or password' });
+
+    // Find or create candidate profile in the job's agency org
+    let { rows: [candidate] } = await conn.query(
+      `SELECT id FROM candidates WHERE email = $1 AND org_id = $2`,
+      [email.toLowerCase(), job.org_id]
+    );
+    if (!candidate) {
+      const { rows: [c] } = await conn.query(
+        `INSERT INTO candidates (org_id, submitted_by_user_id, upload_source, first_name, last_name, email)
+         VALUES ($1, $2, 'self_applied', $3, $4, $5) RETURNING id`,
+        [job.org_id, user.id, user.first_name, user.last_name, email.toLowerCase()]
+      );
+      candidate = c;
+    }
+
+    // Duplicate application check
+    const { rows: dup } = await conn.query(
+      `SELECT id FROM submissions WHERE job_id = $1 AND candidate_id = $2`,
+      [job.id, candidate.id]
+    );
+    if (dup.length) return res.status(409).json({ error: 'You have already applied for this position.' });
+
+    await conn.query(
+      `INSERT INTO submissions (job_id, candidate_id, org_id, submission_source, internal_stage, is_anonymized, profile_unlocked)
+       VALUES ($1, $2, $3, 'direct_applicant', 'new', false, false)`,
+      [job.id, candidate.id, job.org_id]
+    );
+
+    await conn.query('COMMIT');
+    res.status(201).json({
+      user: { id: user.id, email: user.email, first_name: user.first_name, last_name: user.last_name },
+      candidate_id: candidate.id,
+      message: `You've successfully applied for "${job.title}". We'll be in touch soon!`,
+    });
+  } catch (err) {
+    await conn.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    conn.release();
+  }
+});
+
 export default router;

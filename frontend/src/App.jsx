@@ -28,6 +28,7 @@ import ClientSubmissionDetailPage from './pages/client/ClientSubmissionDetailPag
 import PublicJobsPage from './pages/public/PublicJobsPage.jsx';
 import PublicJobDetailPage from './pages/public/PublicJobDetailPage.jsx';
 import PublicRegisterPage from './pages/public/PublicRegisterPage.jsx';
+import PublicApplyPage from './pages/public/PublicApplyPage.jsx';
 
 // Redirects to the right home based on org type
 const HomeRedirect = () => {
@@ -111,6 +112,9 @@ export default function App() {
         <Route path="/board" element={<PublicJobsPage />} />
         <Route path="/board/register" element={<PublicRegisterPage />} />
         <Route path="/board/:id" element={<PublicJobDetailPage />} />
+
+        {/* Direct share link — no auth required */}
+        <Route path="/apply/:jobId" element={<PublicApplyPage />} />
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -8,7 +8,7 @@ import {
   ArrowLeft, MapPin, DollarSign, Star, Briefcase, Users, Sparkles,
   Loader2, X, Edit2, Calendar, Clock, Building2, ChevronRight,
   CheckCircle, AlertTriangle, TrendingUp, TrendingDown, Minus,
-  Wifi, Save, BadgeCheck, Trash2,
+  Wifi, Save, BadgeCheck, Trash2, Share2, Copy, Check,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 
@@ -351,11 +351,94 @@ function EditJobModal({ job, onClose, onSaved }) {
   );
 }
 
+function ShareJobModal({ job, orgName, onClose }) {
+  const [copiedMsg, setCopiedMsg] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const applyUrl = `${window.location.origin}/apply/${job.id}`;
+
+  const deadline = (() => {
+    if (job.deadline) return new Date(job.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+    const d = new Date(); d.setDate(d.getDate() + 5);
+    return d.toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+  })();
+
+  const location = [job.location_city, job.location_state].filter(Boolean).join(', ');
+
+  const message = `🌟 Exciting Opportunity from ${orgName}!
+
+${orgName} is actively looking for a talented ${job.title} and would love for you to apply.
+
+📋 Role: ${job.title}
+🏢 Company: ${orgName}${location ? `\n📍 Location: ${location}${job.remote_allowed ? ' (Remote OK)' : ''}` : ''}${job.job_type ? `\n💼 Type: ${job.job_type === 'full_time' ? 'Full Time' : job.job_type === 'contract' ? 'Contract' : job.job_type}` : ''}
+⏰ Apply by: ${deadline} EOD
+
+Ready to take the next step? Apply in minutes — no lengthy forms, just a quick profile:
+👉 ${applyUrl}
+
+We look forward to hearing from you! 🚀`;
+
+  const copy = (text, setter) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setter(true);
+      setTimeout(() => setter(false), 2500);
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="px-6 py-4 border-b border-surface-100 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
+          <h2 className="font-bold text-slate-900 flex items-center gap-2"><Share2 size={16} className="text-brand-500" /> Share Job</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-surface-100 text-slate-400"><X size={18} /></button>
+        </div>
+        <div className="p-6 space-y-4">
+          <p className="text-sm text-slate-500">Share this message on WhatsApp, email, or any platform. Recipients click the link to view the role and apply directly.</p>
+
+          {/* Message preview */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed">{message}</pre>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => copy(message, setCopiedMsg)}
+              className={clsx(
+                'flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold transition-colors',
+                copiedMsg ? 'bg-emerald-600 text-white' : 'bg-brand-600 hover:bg-brand-700 text-white'
+              )}
+            >
+              {copiedMsg ? <Check size={15} /> : <Copy size={15} />}
+              {copiedMsg ? 'Copied!' : 'Copy Full Message'}
+            </button>
+            <button
+              onClick={() => copy(applyUrl, setCopiedLink)}
+              className={clsx(
+                'flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold border transition-colors',
+                copiedLink ? 'border-emerald-300 text-emerald-700 bg-emerald-50' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+              )}
+            >
+              {copiedLink ? <Check size={15} /> : <Copy size={15} />}
+              {copiedLink ? 'Copied!' : 'Link Only'}
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-400 text-center">
+            Apply link: <span className="font-mono text-brand-600 break-all">{applyUrl}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function JobDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [showEdit, setShowEdit] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const { data: job, isLoading } = useQuery({
     queryKey: ['job', id],
@@ -376,7 +459,7 @@ export default function JobDetailPage() {
 
   const submissions = submissionsData?.submissions || [];
 
-  const { hasPermission } = useAuthStore();
+  const { hasPermission, user } = useAuthStore();
 
   const matchMutation = useMutation({
     mutationFn: () => api.post(`/api/jobs/${id}/match`),
@@ -472,6 +555,12 @@ export default function JobDetailPage() {
                     <Trash2 size={14} /> Delete
                   </button>
                 )}
+                <button
+                  onClick={() => setShowShare(true)}
+                  className="btn-secondary flex items-center gap-1.5"
+                >
+                  <Share2 size={14} /> Share
+                </button>
                 <button
                   onClick={() => setShowEdit(true)}
                   className="btn-secondary flex items-center gap-1.5"
@@ -745,6 +834,14 @@ export default function JobDetailPage() {
             qc.setQueryData(['job', id], updated);
             qc.invalidateQueries({ queryKey: ['jobs'] });
           }}
+        />
+      )}
+
+      {showShare && (
+        <ShareJobModal
+          job={job}
+          orgName={user?.orgName || 'Our Company'}
+          onClose={() => setShowShare(false)}
         />
       )}
     </div>
