@@ -5,6 +5,7 @@ import axios from 'axios';
 import {
   MapPin, Briefcase, Clock, CheckCircle, Loader2,
   Zap, Calendar, LogIn, UserPlus, Eye, EyeOff,
+  Wifi, Shield, Star,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { clsx } from 'clsx';
@@ -27,7 +28,7 @@ function formatDeadline(job) {
 
 export default function PublicApplyPage() {
   const { jobId } = useParams();
-  const [tab, setTab] = useState('register');
+  const [tab, setTab] = useState('login');
   const [applied, setApplied] = useState(false);
   const [appliedName, setAppliedName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -129,7 +130,33 @@ export default function PublicApplyPage() {
             </div>
 
             {/* Job details */}
-            <div className="bg-white rounded-2xl border border-slate-100 p-6 space-y-4 shadow-sm">
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 space-y-5 shadow-sm">
+              {/* Quick meta row */}
+              <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+                {(job.location_city || job.location_state) && (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin size={14} className="text-brand-400" />
+                    {[job.location_city, job.location_state].filter(Boolean).join(', ')}
+                  </span>
+                )}
+                {job.remote_allowed && (
+                  <span className="flex items-center gap-1.5 text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-lg font-medium">
+                    <Wifi size={13} /> Remote OK
+                  </span>
+                )}
+                {job.hybrid_work && !job.remote_allowed && (
+                  <span className="flex items-center gap-1.5 text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg font-medium">
+                    <Wifi size={13} /> Hybrid
+                  </span>
+                )}
+                {(job.experience_min || job.experience_max) && (
+                  <span className="flex items-center gap-1.5">
+                    <Clock size={14} className="text-brand-400" />
+                    {job.experience_min}{job.experience_max ? `–${job.experience_max}` : '+'} yrs experience
+                  </span>
+                )}
+              </div>
+
               {job.description && (
                 <div>
                   <h3 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
@@ -138,9 +165,12 @@ export default function PublicApplyPage() {
                   <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{job.description}</p>
                 </div>
               )}
+
               {job.required_skills?.length > 0 && (
                 <div>
-                  <h3 className="font-semibold text-slate-800 mb-2 text-sm">Required Skills</h3>
+                  <h3 className="font-semibold text-slate-800 mb-2 text-sm flex items-center gap-1.5">
+                    <Star size={13} className="text-brand-500" /> Required Skills
+                  </h3>
                   <div className="flex flex-wrap gap-1.5">
                     {job.required_skills.map(s => (
                       <span key={s} className="bg-brand-50 text-brand-700 text-xs px-2.5 py-1 rounded-lg font-medium">{s}</span>
@@ -148,6 +178,7 @@ export default function PublicApplyPage() {
                   </div>
                 </div>
               )}
+
               {job.nice_to_have_skills?.length > 0 && (
                 <div>
                   <h3 className="font-semibold text-slate-800 mb-2 text-sm">Nice to Have</h3>
@@ -158,11 +189,29 @@ export default function PublicApplyPage() {
                   </div>
                 </div>
               )}
-              {(job.experience_min || job.experience_max) && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Clock size={14} className="text-brand-400" />
-                  Experience: {job.experience_min}
-                  {job.experience_max ? `–${job.experience_max}` : '+'} years
+
+              {job.visa_requirements?.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-slate-800 mb-2 text-sm">Work Authorization</h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {job.visa_requirements.map(v => {
+                      const labels = { citizen: 'US Citizen', green_card: 'Green Card', h1b: 'H1B', h4_ead: 'H4 EAD', opt: 'OPT', stem_opt: 'STEM OPT', l1: 'L2 EAD', tn: 'TN' };
+                      return <span key={v} className="bg-indigo-50 text-indigo-700 text-xs px-2.5 py-1 rounded-lg font-medium">{labels[v] || v}</span>;
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {job.clearance_level && job.clearance_level !== 'none' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2">
+                  <Shield size={15} className="text-amber-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-amber-800">Security Clearance Required</p>
+                    <p className="text-xs text-amber-700 mt-0.5">
+                      {({ none: '', public_trust: 'Public Trust', secret: 'Secret', top_secret: 'Top Secret', ts_sci: 'TS/SCI', ts_sci_poly: 'TS/SCI + Polygraph' })[job.clearance_level]}
+                      {job.clearance_status === 'must_have_active' ? ' — Active clearance required' : job.clearance_status === 'must_be_clearable' ? ' — Must be clearable' : ''}
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
@@ -177,8 +226,8 @@ export default function PublicApplyPage() {
               {/* Tabs */}
               <div className="flex border-b border-slate-100 mt-4">
                 {[
-                  { id: 'register', label: "I'm new here", icon: <UserPlus size={14} /> },
                   { id: 'login',    label: 'I have an account', icon: <LogIn size={14} /> },
+                  { id: 'register', label: "I'm new here",      icon: <UserPlus size={14} /> },
                 ].map(t => (
                   <button key={t.id} type="button" onClick={() => setTab(t.id)}
                     className={clsx(

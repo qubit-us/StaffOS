@@ -224,8 +224,9 @@ router.get('/apply/:jobId', async (req, res) => {
   try {
     const { rows } = await db.query(
       `SELECT j.id, j.title, j.description, j.location_city, j.location_state,
-              j.remote_allowed, j.job_type, j.experience_min, j.experience_max,
+              j.remote_allowed, j.hybrid_work, j.job_type, j.experience_min, j.experience_max,
               j.required_skills, j.nice_to_have_skills, j.visa_requirements,
+              j.clearance_level, j.clearance_status,
               j.deadline, j.positions_count, j.created_at,
               o.id as org_id, o.name as org_name, o.logo_url as org_logo, o.website as org_website
        FROM jobs j
