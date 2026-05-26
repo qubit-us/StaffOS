@@ -17,6 +17,20 @@ const JOB_TYPE_LABELS = {
   internship: 'Internship', other: 'Other',
 };
 
+const EDUCATION_LABELS = {
+  none: null, high_school: 'High School Diploma', associates: "Associate's Degree",
+  bachelors: "Bachelor's Degree", masters: "Master's Degree", phd: 'PhD',
+};
+
+const TRAVEL_LABELS = {
+  none: null, minimal: 'Minimal travel (<10%)', up_to_25: 'Up to 25% travel',
+  up_to_50: 'Up to 50% travel', up_to_100: 'Up to 100% travel',
+};
+
+const POLYGRAPH_LABELS = {
+  none: null, ci_poly: 'CI Polygraph required', full_scope_poly: 'Full Scope Polygraph required',
+};
+
 function formatDeadline(job) {
   if (job.deadline) {
     return new Date(job.deadline).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
@@ -132,11 +146,16 @@ export default function PublicApplyPage() {
             {/* Job details */}
             <div className="bg-white rounded-2xl border border-slate-100 p-6 space-y-5 shadow-sm">
               {/* Quick meta row */}
-              <div className="flex flex-wrap gap-3 text-sm text-slate-600">
+              <div className="flex flex-wrap gap-2 text-sm">
                 {(job.location_city || job.location_state) && (
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 text-slate-600">
                     <MapPin size={14} className="text-brand-400" />
                     {[job.location_city, job.location_state].filter(Boolean).join(', ')}
+                  </span>
+                )}
+                {job.job_type && (
+                  <span className="flex items-center gap-1.5 bg-slate-100 text-slate-700 px-2.5 py-0.5 rounded-lg font-medium">
+                    <Briefcase size={13} /> {JOB_TYPE_LABELS[job.job_type] || job.job_type}
                   </span>
                 )}
                 {job.remote_allowed && (
@@ -150,16 +169,16 @@ export default function PublicApplyPage() {
                   </span>
                 )}
                 {(job.experience_min || job.experience_max) && (
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-center gap-1.5 text-slate-600">
                     <Clock size={14} className="text-brand-400" />
-                    {job.experience_min}{job.experience_max ? `–${job.experience_max}` : '+'} yrs experience
+                    {job.experience_min || 0}{job.experience_max ? `–${job.experience_max}` : '+'} yrs exp
                   </span>
                 )}
               </div>
 
               {job.description && (
                 <div>
-                  <h3 className="font-semibold text-slate-800 mb-2 flex items-center gap-2">
+                  <h3 className="font-semibold text-slate-800 mb-2 flex items-center gap-2 text-sm">
                     <Briefcase size={14} className="text-brand-500" /> About the Role
                   </h3>
                   <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{job.description}</p>
@@ -202,14 +221,29 @@ export default function PublicApplyPage() {
                 </div>
               )}
 
+              {EDUCATION_LABELS[job.education_requirement] && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <CheckCircle size={14} className="text-brand-400 shrink-0" />
+                  <span><span className="font-semibold text-slate-800">Education: </span>{EDUCATION_LABELS[job.education_requirement]}</span>
+                </div>
+              )}
+
+              {TRAVEL_LABELS[job.travel_requirement] && (
+                <div className="flex items-center gap-2 text-sm text-slate-600">
+                  <CheckCircle size={14} className="text-brand-400 shrink-0" />
+                  <span><span className="font-semibold text-slate-800">Travel: </span>{TRAVEL_LABELS[job.travel_requirement]}</span>
+                </div>
+              )}
+
               {job.clearance_level && job.clearance_level !== 'none' && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2">
                   <Shield size={15} className="text-amber-600 mt-0.5 shrink-0" />
                   <div>
                     <p className="text-sm font-semibold text-amber-800">Security Clearance Required</p>
                     <p className="text-xs text-amber-700 mt-0.5">
-                      {({ none: '', public_trust: 'Public Trust', secret: 'Secret', top_secret: 'Top Secret', ts_sci: 'TS/SCI', ts_sci_poly: 'TS/SCI + Polygraph' })[job.clearance_level]}
+                      {({ public_trust: 'Public Trust', secret: 'Secret', top_secret: 'Top Secret', ts_sci: 'TS/SCI', ts_sci_poly: 'TS/SCI + Polygraph' })[job.clearance_level]}
                       {job.clearance_status === 'must_have_active' ? ' — Active clearance required' : job.clearance_status === 'must_be_clearable' ? ' — Must be clearable' : ''}
+                      {POLYGRAPH_LABELS[job.polygraph] ? ` · ${POLYGRAPH_LABELS[job.polygraph]}` : ''}
                     </p>
                   </div>
                 </div>
