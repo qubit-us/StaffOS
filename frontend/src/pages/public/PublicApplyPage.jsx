@@ -145,7 +145,7 @@ export default function PublicApplyPage() {
 
             {/* Job details */}
             <div className="bg-white rounded-2xl border border-slate-100 p-6 space-y-5 shadow-sm">
-              {/* Quick meta row */}
+              {/* Quick meta row — always show key attributes */}
               <div className="flex flex-wrap gap-2 text-sm">
                 {(job.location_city || job.location_state) && (
                   <span className="flex items-center gap-1.5 text-slate-600">
@@ -158,14 +158,17 @@ export default function PublicApplyPage() {
                     <Briefcase size={13} /> {JOB_TYPE_LABELS[job.job_type] || job.job_type}
                   </span>
                 )}
-                {job.remote_allowed && (
+                {job.remote_allowed ? (
                   <span className="flex items-center gap-1.5 text-teal-700 bg-teal-50 px-2.5 py-0.5 rounded-lg font-medium">
                     <Wifi size={13} /> Remote OK
                   </span>
-                )}
-                {job.hybrid_work && !job.remote_allowed && (
+                ) : job.hybrid_work ? (
                   <span className="flex items-center gap-1.5 text-sky-700 bg-sky-50 px-2.5 py-0.5 rounded-lg font-medium">
                     <Wifi size={13} /> Hybrid
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-lg font-medium">
+                    <Briefcase size={13} /> On-site
                   </span>
                 )}
                 {(job.experience_min || job.experience_max) && (
@@ -209,31 +212,34 @@ export default function PublicApplyPage() {
                 </div>
               )}
 
-              {job.visa_requirements?.length > 0 && (
-                <div>
-                  <h3 className="font-semibold text-slate-800 mb-2 text-sm">Work Authorization</h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {job.visa_requirements.map(v => {
-                      const labels = { citizen: 'US Citizen', green_card: 'Green Card', h1b: 'H1B', h4_ead: 'H4 EAD', opt: 'OPT', stem_opt: 'STEM OPT', l1: 'L2 EAD', tn: 'TN' };
-                      return <span key={v} className="bg-indigo-50 text-indigo-700 text-xs px-2.5 py-1 rounded-lg font-medium">{labels[v] || v}</span>;
-                    })}
+              {/* Requirements grid — always show relevant requirement fields */}
+              <div className="border-t border-slate-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                {job.visa_requirements?.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Work Authorization</p>
+                    <div className="flex flex-wrap gap-1">
+                      {job.visa_requirements.map(v => {
+                        const labels = { citizen: 'US Citizen', green_card: 'Green Card', h1b: 'H1B', h4_ead: 'H4 EAD', opt: 'OPT', stem_opt: 'STEM OPT', l1: 'L2 EAD', tn: 'TN' };
+                        return <span key={v} className="bg-indigo-50 text-indigo-700 text-xs px-2 py-0.5 rounded-lg font-medium">{labels[v] || v}</span>;
+                      })}
+                    </div>
                   </div>
+                )}
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Education</p>
+                  <p className="text-slate-700">{EDUCATION_LABELS[job.education_requirement] || 'No specific requirement'}</p>
                 </div>
-              )}
-
-              {EDUCATION_LABELS[job.education_requirement] && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <CheckCircle size={14} className="text-brand-400 shrink-0" />
-                  <span><span className="font-semibold text-slate-800">Education: </span>{EDUCATION_LABELS[job.education_requirement]}</span>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Travel</p>
+                  <p className="text-slate-700">{TRAVEL_LABELS[job.travel_requirement] || 'No travel required'}</p>
                 </div>
-              )}
-
-              {TRAVEL_LABELS[job.travel_requirement] && (
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <CheckCircle size={14} className="text-brand-400 shrink-0" />
-                  <span><span className="font-semibold text-slate-800">Travel: </span>{TRAVEL_LABELS[job.travel_requirement]}</span>
-                </div>
-              )}
+                {job.polygraph && job.polygraph !== 'none' && (
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Polygraph</p>
+                    <p className="text-slate-700">{POLYGRAPH_LABELS[job.polygraph]}</p>
+                  </div>
+                )}
+              </div>
 
               {job.clearance_level && job.clearance_level !== 'none' && (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2">
