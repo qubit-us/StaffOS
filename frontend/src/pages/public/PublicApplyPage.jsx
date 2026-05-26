@@ -69,7 +69,7 @@ export default function PublicApplyPage() {
       setApplied(true);
       toast.success(data.message);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Registration failed. Please try again.');
+      toast.error(err.response?.data?.error || (err.response ? `Error ${err.response.status}: please try again.` : 'Cannot reach server — please try again.'));
     } finally {
       setLoading(false);
     }
@@ -84,7 +84,7 @@ export default function PublicApplyPage() {
       setApplied(true);
       toast.success(data.message);
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Sign in failed. Please try again.');
+      toast.error(err.response?.data?.error || (err.response ? `Error ${err.response.status}: please try again.` : 'Cannot reach server — please try again.'));
     } finally {
       setLoading(false);
     }
@@ -212,8 +212,8 @@ export default function PublicApplyPage() {
                 </div>
               )}
 
-              {/* Requirements grid — always show relevant requirement fields */}
-              <div className="border-t border-slate-100 pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              {/* Requirements — stacked, full width */}
+              <div className="border-t border-slate-100 pt-4 space-y-3 text-sm">
                 {job.visa_requirements?.length > 0 && (
                   <div>
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Work Authorization</p>
@@ -225,35 +225,31 @@ export default function PublicApplyPage() {
                     </div>
                   </div>
                 )}
+
+                {job.clearance_level && job.clearance_level !== 'none' && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2">
+                    <Shield size={15} className="text-amber-600 mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-amber-800">Security Clearance Required</p>
+                      <p className="text-xs text-amber-700 mt-0.5">
+                        {({ public_trust: 'Public Trust', secret: 'Secret', top_secret: 'Top Secret', ts_sci: 'TS/SCI', ts_sci_poly: 'TS/SCI + Polygraph' })[job.clearance_level]}
+                        {job.clearance_status === 'must_have_active' ? ' — Active clearance required' : job.clearance_status === 'must_be_clearable' ? ' — Must be clearable' : ''}
+                        {POLYGRAPH_LABELS[job.polygraph] ? ` · ${POLYGRAPH_LABELS[job.polygraph]}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Education</p>
                   <p className="text-slate-700">{EDUCATION_LABELS[job.education_requirement] || 'No specific requirement'}</p>
                 </div>
+
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Travel</p>
                   <p className="text-slate-700">{TRAVEL_LABELS[job.travel_requirement] || 'No travel required'}</p>
                 </div>
-                {job.polygraph && job.polygraph !== 'none' && (
-                  <div>
-                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Polygraph</p>
-                    <p className="text-slate-700">{POLYGRAPH_LABELS[job.polygraph]}</p>
-                  </div>
-                )}
               </div>
-
-              {job.clearance_level && job.clearance_level !== 'none' && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex items-start gap-2">
-                  <Shield size={15} className="text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">Security Clearance Required</p>
-                    <p className="text-xs text-amber-700 mt-0.5">
-                      {({ public_trust: 'Public Trust', secret: 'Secret', top_secret: 'Top Secret', ts_sci: 'TS/SCI', ts_sci_poly: 'TS/SCI + Polygraph' })[job.clearance_level]}
-                      {job.clearance_status === 'must_have_active' ? ' — Active clearance required' : job.clearance_status === 'must_be_clearable' ? ' — Must be clearable' : ''}
-                      {POLYGRAPH_LABELS[job.polygraph] ? ` · ${POLYGRAPH_LABELS[job.polygraph]}` : ''}
-                    </p>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Apply form */}
@@ -273,7 +269,7 @@ export default function PublicApplyPage() {
                     className={clsx(
                       'flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold transition-colors',
                       tab === t.id
-                        ? 'text-brand-600 border-b-2 border-brand-600 bg-white'
+                        ? 'text-white bg-brand-800'
                         : 'text-slate-500 hover:text-slate-700 bg-slate-50'
                     )}
                   >
