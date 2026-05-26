@@ -134,6 +134,7 @@ function applyParsedFields(data, setForm, originalJd) {
     location_city:       data.location_city        || f.location_city,
     location_state:      data.location_state       || f.location_state,
     remote_allowed:        data.remote_allowed        ?? f.remote_allowed,
+    hybrid_work:           data.hybrid_work           ?? f.hybrid_work,
     visa_requirements:     data.visa_requirements?.length ? data.visa_requirements : f.visa_requirements,
     clearance_level:       data.clearance_level        || f.clearance_level,
     clearance_status:      data.clearance_status       || f.clearance_status,
@@ -149,7 +150,7 @@ function NewJobModal({ onClose, onCreated }) {
     title: '', description: '', required_skills: '', nice_to_have_skills: '',
     experience_min: '', pay_rate_min: '', pay_rate_max: '',
     client_bill_rate: '',
-    location_city: '', location_state: '', remote_allowed: false,
+    location_city: '', location_state: '', remote_allowed: false, hybrid_work: false,
     is_public: false, job_type: 'contract', visa_requirements: [],
     client_org_id: '',
     clearance_level: 'none', clearance_status: 'not_required', polygraph: 'none',
@@ -494,6 +495,10 @@ function NewJobModal({ onClose, onCreated }) {
             <span className="text-sm font-medium text-slate-700">Remote work allowed</span>
           </label>
           <label className="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" checked={form.hybrid_work} onChange={set('hybrid_work')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
+            <span className="text-sm font-medium text-slate-700">Hybrid work</span>
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" checked={form.is_public} onChange={set('is_public')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
             <span className="text-sm font-medium text-slate-700">Post to public job board</span>
           </label>
@@ -653,6 +658,7 @@ export default function JobsPage() {
                         {job.client_name && <span>{job.client_name}</span>}
                         {job.created_by_name && <span className="text-slate-400">by {job.created_by_name}</span>}
                         {job.remote_allowed && <span className="flex items-center gap-0.5 text-teal-600"><Wifi size={10} /> Remote</span>}
+                        {job.hybrid_work && !job.remote_allowed && <span className="flex items-center gap-0.5 text-sky-600"><Wifi size={10} /> Hybrid</span>}
                         {job.is_public && <span className="text-brand-500 font-medium">Public</span>}
                       </div>
                     </td>

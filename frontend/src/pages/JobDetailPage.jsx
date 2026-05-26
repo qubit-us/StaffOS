@@ -124,6 +124,7 @@ function EditJobModal({ job, onClose, onSaved }) {
     location_city:       job.location_city || '',
     location_state:      job.location_state || '',
     remote_allowed:      job.remote_allowed || false,
+    hybrid_work:         job.hybrid_work || false,
     is_public:           job.is_public || false,
     status:              job.status || 'open',
     deadline:            job.deadline ? job.deadline.split('T')[0] : '',
@@ -335,6 +336,10 @@ function EditJobModal({ job, onClose, onSaved }) {
             <span className="text-sm font-medium text-slate-700">Remote work allowed</span>
           </label>
           <label className="flex items-center gap-2.5 cursor-pointer">
+            <input type="checkbox" checked={form.hybrid_work} onChange={set('hybrid_work')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
+            <span className="text-sm font-medium text-slate-700">Hybrid work</span>
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer">
             <input type="checkbox" checked={form.is_public} onChange={set('is_public')} className="w-4 h-4 rounded text-brand-600 focus:ring-brand-500" />
             <span className="text-sm font-medium text-slate-700">Post to public job board</span>
           </label>
@@ -541,6 +546,11 @@ export default function JobDetailPage() {
                   {job.remote_allowed && (
                     <span className="badge bg-teal-50 text-teal-700 flex items-center gap-1">
                       <Wifi size={11} /> Remote OK
+                    </span>
+                  )}
+                  {job.hybrid_work && !job.remote_allowed && (
+                    <span className="badge bg-sky-50 text-sky-700 flex items-center gap-1">
+                      <Wifi size={11} /> Hybrid
                     </span>
                   )}
                 </div>

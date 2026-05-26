@@ -95,7 +95,8 @@ Rules:
 - pay_rate_min/max: hourly rate if mentioned (convert annual salary to hourly by dividing by 2080 if needed), null if not mentioned
 - job_type: infer from context — "contract"/"contractor" → contract, "full-time"/"permanent" → full_time, default to contract if unclear
 - visa_requirements: if SECRET/TS clearance required → ["citizen","green_card"]; if no clearance → []
-- remote_allowed: true only if explicitly stated as remote/hybrid
+- remote_allowed: true only if explicitly stated as fully remote
+- hybrid_work: true if hybrid/flexible work arrangement is mentioned
 - clearance_level: none, public_trust, secret, top_secret, ts_sci, ts_sci_poly — infer from text
 - clearance_status: not_required, must_have_active, must_be_clearable
 - polygraph: none, ci_poly, full_scope_poly
@@ -116,6 +117,7 @@ Fields:
   "location_city": "string or null",
   "location_state": "2-letter abbrev or null",
   "remote_allowed": true or false,
+  "hybrid_work": true or false,
   "visa_requirements": ["citizen"|"green_card"|"h1b"|"h4_ead"|"opt"|"stem_opt"|"l1"|"tn"],
   "clearance_level": "none|public_trust|secret|top_secret|ts_sci|ts_sci_poly",
   "clearance_status": "not_required|must_have_active|must_be_clearable",
@@ -243,7 +245,7 @@ router.post('/', requirePermission('CREATE_JOB'), async (req, res) => {
   const {
     title, description, required_skills, nice_to_have_skills,
     experience_min, experience_max, location_city, location_state,
-    location_country, remote_allowed, visa_requirements, pay_rate_min,
+    location_country, remote_allowed, hybrid_work, visa_requirements, pay_rate_min,
     pay_rate_max, client_bill_rate, rate_type, job_type, industry,
     client_org_id, end_client_org_id, deadline, is_public, positions_count, start_date,
     clearance_level, clearance_status, polygraph, education_requirement, travel_requirement, contract_vehicle,
@@ -256,18 +258,18 @@ router.post('/', requirePermission('CREATE_JOB'), async (req, res) => {
     `INSERT INTO jobs (
        org_id, created_by, title, description, required_skills, nice_to_have_skills,
        experience_min, experience_max, location_city, location_state, location_country,
-       remote_allowed, visa_requirements, pay_rate_min, pay_rate_max, client_bill_rate,
+       remote_allowed, hybrid_work, visa_requirements, pay_rate_min, pay_rate_max, client_bill_rate,
        rate_type, job_type, industry, client_org_id, end_client_org_id, deadline,
        is_public, positions_count, start_date,
        clearance_level, clearance_status, polygraph, education_requirement, travel_requirement, contract_vehicle,
        original_jd, status
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,'open')
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,'open')
      RETURNING *`,
     [
       req.orgId, req.user.id, title, description,
       required_skills || [], nice_to_have_skills || [],
       experience_min, experience_max, location_city, location_state, location_country || 'US',
-      remote_allowed || false, visa_requirements || [], pay_rate_min, pay_rate_max,
+      remote_allowed || false, hybrid_work || false, visa_requirements || [], pay_rate_min, pay_rate_max,
       client_bill_rate || null, rate_type || 'hourly', job_type || 'contract', industry || [],
       client_org_id, end_client_org_id, deadline,
       is_public || false, positions_count || 1, start_date || null,
@@ -301,7 +303,7 @@ router.post('/', requirePermission('CREATE_JOB'), async (req, res) => {
 // PATCH /api/jobs/:id
 router.patch('/:id', requirePermission('EDIT_JOB'), async (req, res) => {
   const allowed = ['title','description','required_skills','nice_to_have_skills',
-    'experience_min','experience_max','location_city','location_state','remote_allowed',
+    'experience_min','experience_max','location_city','location_state','remote_allowed','hybrid_work',
     'visa_requirements','pay_rate_min','pay_rate_max','client_bill_rate','rate_type',
     'job_type','industry','status','deadline','is_public','positions_count','start_date',
     'clearance_level','clearance_status','polygraph','education_requirement','travel_requirement','contract_vehicle','client_org_id',
@@ -333,16 +335,23 @@ router.patch('/:id', requirePermission('EDIT_JOB'), async (req, res) => {
 
 // DELETE /api/jobs/:id
 router.delete('/:id', requirePermission('DELETE_JOB'), async (req, res) => {
-  const isVendor = req.user.org_type === 'vendor';
-  const orgCheck = isVendor
-    ? `(org_id = $2 OR org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $2 AND status = 'active'))`
-    : `org_id = $2`;
-  const { rows } = await db.query(`SELECT id, title FROM jobs WHERE id = $1 AND ${orgCheck}`, [req.params.id, req.orgId]);
-  if (!rows.length) return res.status(404).json({ error: 'Job not found' });
+  try {
+    const isVendor = req.user.org_type === 'vendor';
+    const orgCheck = isVendor
+      ? `(org_id = $2 OR org_id IN (SELECT agency_org_id FROM vendor_relationships WHERE vendor_org_id = $2 AND status = 'active'))`
+      : `org_id = $2`;
+    const { rows } = await db.query(`SELECT id, title FROM jobs WHERE id = $1 AND ${orgCheck}`, [req.params.id, req.orgId]);
+    if (!rows.length) return res.status(404).json({ error: 'Job not found' });
 
-  await db.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
-  logAudit(req, 'job.deleted', 'job', req.params.id, { title: rows[0].title });
-  res.json({ message: 'Job deleted' });
+    // Null out match_id on submissions before cascade to avoid FK conflict
+    await db.query('UPDATE submissions SET match_id = NULL WHERE job_id = $1', [req.params.id]);
+    await db.query('DELETE FROM jobs WHERE id = $1', [req.params.id]);
+    logAudit(req, 'job.deleted', 'job', req.params.id, { title: rows[0].title });
+    res.json({ message: 'Job deleted' });
+  } catch (err) {
+    logger.error('delete job error:', err.message);
+    res.status(500).json({ error: err.message || 'Failed to delete job' });
+  }
 });
 
 // POST /api/jobs/:id/match — trigger AI matching
