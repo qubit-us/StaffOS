@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
 import { useAuthStore } from './store/authStore.js';
+import api from './lib/api.js';
 import LoginPage from './pages/LoginPage.jsx';
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 import DashboardLayout from './components/layout/DashboardLayout.jsx';
@@ -54,9 +56,22 @@ const ClientRoute = ({ children }) => {
   return children;
 };
 
+// Refresh permissions from server on every app load so role changes take effect immediately
+function PermissionRefresher() {
+  const { token, updateUser } = useAuthStore();
+  useEffect(() => {
+    if (!token) return;
+    api.get('/api/auth/me').then(({ data }) => {
+      updateUser({ permissions: data.user.permissions, roles: data.user.roles });
+    }).catch(() => {}); // silently ignore — stale session will be caught by auth middleware
+  }, [token]);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <PermissionRefresher />
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
